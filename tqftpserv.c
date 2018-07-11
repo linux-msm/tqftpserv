@@ -40,10 +40,10 @@
 #include <unistd.h>
 
 #include "list.h"
-#include "servreg_loc.h"
-#include "util.h"
 
 #define BASE_DIR "/"
+
+#define MAX(x, y) ((x) > (y) ? (x) : (y))
 
 enum {
 	OP_RRQ = 1,
