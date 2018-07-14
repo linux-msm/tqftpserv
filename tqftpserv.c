@@ -180,6 +180,7 @@ static int tftp_send_error(int sock, int code, const char *msg)
 {
 	size_t len;
 	char *buf;
+	int rc;
 
 	len = 4 + strlen(msg) + 1;
 
@@ -191,7 +192,9 @@ static int tftp_send_error(int sock, int code, const char *msg)
 	*(uint16_t*)(buf + 2) = htons(code);
 	strcpy(buf + 4, msg);
 
-	return send(sock, buf, len, 0);
+	rc = send(sock, buf, len, 0);
+	free(buf);
+	return rc;
 }
 
 static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
