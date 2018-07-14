@@ -202,7 +202,7 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	const char *mode;
 	const char *opt;
 	struct stat sb;
-	const char *p = buf + 2;
+	const char *p;
 	ssize_t tsize = -1;
 	size_t blksize = 512;
 	unsigned int timeoutms = 1000;
