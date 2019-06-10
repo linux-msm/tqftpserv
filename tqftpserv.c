@@ -423,9 +423,11 @@ static int handle_reader(struct tftp_client *client)
 			break;
 		}
 		printf("[TQFTP] Sent block %d of %zd\n", block + 1, n);
+		if (n == 0)
+			break;
 	}
 
-	return n == 0 ? 0 : 1;
+	return 1;
 }
 
 static int handle_writer(struct tftp_client *client)
