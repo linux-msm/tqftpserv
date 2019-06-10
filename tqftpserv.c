@@ -99,7 +99,7 @@ static ssize_t tftp_send_data(struct tftp_client *client,
 
 	p += len;
 
-	printf("[TQFTP] Sending %zd bytes of DATA\n", p - buf);
+	// printf("[TQFTP] Sending %zd bytes of DATA\n", p - buf);
 	len = send(client->sock, buf, p - buf, 0);
 
 	free(buf);
@@ -297,7 +297,7 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	client->wsize = wsize;
 	client->timeoutms = timeoutms;
 
-	printf("[TQFTP] new reader added\n");
+	// printf("[TQFTP] new reader added\n");
 
 	list_add(&readers, &client->node);
 
@@ -369,7 +369,7 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 		return;
 	}
 
-	printf("[TQFTP] new writer added\n");
+	// printf("[TQFTP] new writer added\n");
 
 	list_add(&writers, &client->node);
 }
@@ -413,7 +413,7 @@ static int handle_reader(struct tftp_client *client)
 	}
 
 	last = buf[2] << 8 | buf[3];
-	printf("[TQFTP] Got ack for %d\n", last);
+	// printf("[TQFTP] Got ack for %d\n", last);
 
 	for (block = last; block < last + client->wsize; block++) {
 		n = tftp_send_data(client, block + 1,
@@ -422,7 +422,7 @@ static int handle_reader(struct tftp_client *client)
 			printf("[TQFTP] Sent block %d failed: %zd\n", block + 1, n);
 			break;
 		}
-		printf("[TQFTP] Sent block %d of %zd\n", block + 1, n);
+		// printf("[TQFTP] Sent block %d of %zd\n", block + 1, n);
 		if (n == 0)
 			break;
 	}
@@ -573,14 +573,14 @@ int main(int argc, char **argv)
 
 				switch (pkt.type) {
 				case QRTR_TYPE_BYE:
-					fprintf(stderr, "[TQFTP] got bye\n");
+					// fprintf(stderr, "[TQFTP] got bye\n");
 					list_for_each_entry_safe(client, next, &writers, node) {
 						if (client->sq.sq_node == sq.sq_node)
 							client_close_and_free(client);
 					}
 					break;
 				case QRTR_TYPE_DEL_CLIENT:
-					fprintf(stderr, "[TQFTP] got del_client\n");
+					// fprintf(stderr, "[TQFTP] got del_client\n");
 					list_for_each_entry_safe(client, next, &writers, node) {
 						if (!memcmp(&client->sq, &sq, sizeof(sq)))
 							client_close_and_free(client);
@@ -597,7 +597,7 @@ int main(int argc, char **argv)
 					handle_rrq(buf, len, &sq);
 					break;
 				case OP_WRQ:
-					printf("[TQFTP] write\n");
+					// printf("[TQFTP] write\n");
 					handle_wrq(buf, len, &sq);
 					break;
 				default:
