@@ -40,8 +40,7 @@
 #include <unistd.h>
 
 #include "list.h"
-
-#define BASE_DIR "/"
+#include "translate.h"
 
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 
@@ -212,7 +211,6 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	size_t rsize = 0;
 	size_t wsize = 0;
 	bool do_oack = false;
-	char path[256];
 	int sock;
 	int ret;
 	int fd;
@@ -275,10 +273,9 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 		return;
 	}
 
-	snprintf(path, sizeof(path), BASE_DIR "/%s", filename);
-	fd = open(path, O_RDONLY);
+	fd = translate_open(filename, O_RDONLY);
 	if (fd < 0) {
-		printf("[TQFTP] unable to open %s (%d), reject\n", path, errno);
+		printf("[TQFTP] unable to open %s (%d), reject\n", filename, errno);
 		tftp_send_error(sock, 1, "file not found");
 		return;
 	}
@@ -317,7 +314,6 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	struct tftp_client *client;
 	const char *filename;
 	const char *mode;
-	char path[256];
 	int sock;
 	int ret;
 	int fd;
@@ -333,11 +329,10 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 
 	printf("[TQFTP] WRQ: %s (%s)\n", filename, mode);
 
-	snprintf(path, sizeof(path), BASE_DIR "/%s", filename);
-	fd = open(path, O_WRONLY | O_CREAT, 0666);
+	fd = translate_open(filename, O_WRONLY | O_CREAT);
 	if (fd < 0) {
 		/* XXX: error */
-		printf("[TQFTP] unable to open %s (%d), reject\n", path, errno);
+		printf("[TQFTP] unable to open %s (%d), reject\n", filename, errno);
 		return;
 	}
 

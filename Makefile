@@ -7,7 +7,7 @@ prefix ?= /usr/local
 bindir := $(prefix)/bin
 servicedir := $(prefix)/lib/systemd/system
 
-SRCS := tqftpserv.c
+SRCS := tqftpserv.c translate.c
 
 OBJS := $(SRCS:.c=.o)
 
