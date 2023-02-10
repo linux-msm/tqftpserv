@@ -223,7 +223,7 @@ static void parse_options(const char *buf, size_t len, size_t *blksize,
 		} else if (!strcmp(opt, "wsize")) {
 			*wsize = atoi(value);
 		} else {
-			printf("[TQFTP] Ignoring unknown option '%s'\n", opt);
+			printf("[TQFTP] Ignoring unknown option '%s' with value '%s'\n", opt, value);
 		}
 	}
 }
