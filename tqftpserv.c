@@ -427,7 +427,7 @@ static int handle_reader(struct tftp_client *client)
 	opcode = buf[0] << 8 | buf[1];
 	if (opcode == OP_ERROR) {
 		buf[len] = '\0';
-		printf("[TQFTP] Remote returned an error: %s\n", buf + 4);
+		printf("[TQFTP] Remote returned an error: %d - %s\n", buf[2] << 8 | buf[3], buf + 4);
 		return -1;
 	} else if (opcode != OP_ACK) {
 		printf("[TQFTP] Expected ACK, got %d\n", opcode);
