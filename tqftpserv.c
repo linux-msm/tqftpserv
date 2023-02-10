@@ -67,6 +67,7 @@ struct tftp_client {
 	size_t rsize;
 	size_t wsize;
 	unsigned int timeoutms;
+	off_t seek;
 };
 
 static struct list_head readers = LIST_INIT(readers);
@@ -118,7 +119,8 @@ static int tftp_send_ack(int sock, int block)
 }
 
 static int tftp_send_oack(int sock, size_t *blocksize, size_t *tsize,
-			  size_t *wsize, unsigned int *timeoutms, size_t *rsize)
+			  size_t *wsize, unsigned int *timeoutms, size_t *rsize,
+			  off_t *seek)
 {
 	char buf[512];
 	char *p = buf;
@@ -172,6 +174,15 @@ static int tftp_send_oack(int sock, size_t *blocksize, size_t *tsize,
 		*p++ = '\0';
 	}
 
+	if (seek) {
+		strcpy(p, "seek");
+		p += 5;
+
+		n = sprintf(p, "%zd", *seek);
+		p += n;
+		*p++ = '\0';
+	}
+
 	return send(sock, buf, p - buf, 0);
 }
 
@@ -198,7 +209,7 @@ static int tftp_send_error(int sock, int code, const char *msg)
 
 static void parse_options(const char *buf, size_t len, size_t *blksize,
 			  ssize_t *tsize, size_t *wsize, unsigned int *timeoutms,
-			  size_t *rsize)
+			  size_t *rsize, off_t *seek)
 {
 	const char *opt, *value;
 	const char *p = buf;
@@ -218,6 +229,7 @@ static void parse_options(const char *buf, size_t len, size_t *blksize,
 		 * tsize: total size - request to get file size in bytes
 		 * rsize: read size - how many bytes to send, not full file
 		 * wsize: window size - how many blocks to send without ACK
+		 * seek: offset from beginning of file in bytes to start reading
 		 */
 		if (!strcmp(opt, "blksize")) {
 			*blksize = atoi(value);
@@ -229,6 +241,8 @@ static void parse_options(const char *buf, size_t len, size_t *blksize,
 			*rsize = atoi(value);
 		} else if (!strcmp(opt, "wsize")) {
 			*wsize = atoi(value);
+		} else if (!strcmp(opt, "seek")) {
+			*seek = atoi(value);
 		} else {
 			printf("[TQFTP] Ignoring unknown option '%s' with value '%s'\n", opt, value);
 		}
@@ -247,6 +261,7 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	unsigned int timeoutms = 1000;
 	size_t rsize = 0;
 	size_t wsize = 0;
+	off_t seek = 0;
 	bool do_oack = false;
 	int sock;
 	int ret;
@@ -271,7 +286,7 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	if (p < buf + len) {
 		do_oack = true;
 		parse_options(p, len - (p - buf), &blksize, &tsize, &wsize,
-				&timeoutms, &rsize);
+				&timeoutms, &rsize, &seek);
 	}
 
 	sock = qrtr_open(0);
@@ -308,6 +323,7 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	client->rsize = rsize;
 	client->wsize = wsize;
 	client->timeoutms = timeoutms;
+	client->seek = seek;
 
 	// printf("[TQFTP] new reader added\n");
 
@@ -318,7 +334,8 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 			       tsize ? (size_t*)&tsize : NULL,
 			       wsize ? &wsize : NULL,
 			       &client->timeoutms,
-			       rsize ? &rsize: NULL);
+			       rsize ? &rsize : NULL,
+			       seek ? &seek : NULL);
 	} else {
 		tftp_send_data(client, 1, 0);
 	}
@@ -335,6 +352,7 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	unsigned int timeoutms = 1000;
 	size_t rsize = 0;
 	size_t wsize = 0;
+	off_t seek = 0;
 	bool do_oack = false;
 	int sock;
 	int ret;
@@ -355,7 +373,7 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	if (p < buf + len) {
 		do_oack = true;
 		parse_options(p, len - (p - buf), &blksize, &tsize, &wsize,
-				&timeoutms, &rsize);
+				&timeoutms, &rsize, &seek);
 	}
 
 	fd = translate_open(filename, O_WRONLY | O_CREAT);
@@ -387,6 +405,7 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	client->rsize = rsize;
 	client->wsize = wsize;
 	client->timeoutms = timeoutms;
+	client->seek = seek;
 
 	// printf("[TQFTP] new writer added\n");
 
@@ -397,7 +416,8 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 			       tsize ? (size_t*)&tsize : NULL,
 			       wsize ? &wsize : NULL,
 			       &client->timeoutms,
-			       rsize ? &rsize: NULL);
+			       rsize ? &rsize : NULL,
+			       seek ? &seek : NULL);
 	} else {
 		tftp_send_data(client, 1, 0);
 	}
