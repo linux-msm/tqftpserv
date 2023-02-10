@@ -622,6 +622,10 @@ int main(int argc, char **argv)
 					// printf("[TQFTP] write\n");
 					handle_wrq(buf, len, &sq);
 					break;
+				case OP_ERROR:
+					buf[len] = '\0';
+					printf("[TQFTP] received error: %d - %s\n", buf[2] << 8 | buf[3], buf + 4);
+					break;
 				default:
 					printf("[TQFTP] unhandled op %d\n", opcode);
 					break;
