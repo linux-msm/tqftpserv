@@ -88,7 +88,8 @@ static int translate_readonly(const char *file)
 	class_dir = fdopendir(class_fd);
 	if (!class_dir) {
 		warn("failed to opendir");
-		goto close_class;
+		close(class_fd);
+		return -1;
 	}
 
 	while ((de = readdir(class_dir)) != NULL) {
@@ -129,9 +130,6 @@ static int translate_readonly(const char *file)
 	}
 
 	closedir(class_dir);
-
-close_class:
-	close(class_fd);
 
 	return fd;
 }
