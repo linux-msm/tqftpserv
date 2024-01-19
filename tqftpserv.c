@@ -53,6 +53,10 @@ enum {
 	OP_OACK,
 };
 
+enum {
+	ERROR_END_OF_TRANSFER = 9,
+};
+
 struct tftp_client {
 	struct list_head node;
 
@@ -467,7 +471,12 @@ static int handle_reader(struct tftp_client *client)
 	opcode = buf[0] << 8 | buf[1];
 	if (opcode == OP_ERROR) {
 		buf[len] = '\0';
-		printf("[TQFTP] Remote returned an error: %d - %s\n", buf[2] << 8 | buf[3], buf + 4);
+		int err = buf[2] << 8 | buf[3];
+		/* "End of Transfer" is not an error, used with stat(2)-like calls */
+		if (err == ERROR_END_OF_TRANSFER)
+			printf("[TQFTP] Remote returned END OF TRANSFER: %d - %s\n", err, buf + 4);
+		else
+			printf("[TQFTP] Remote returned an error: %d - %s\n", err, buf + 4);
 		return -1;
 	} else if (opcode != OP_ACK) {
 		printf("[TQFTP] Expected ACK, got %d\n", opcode);
