@@ -114,6 +114,31 @@ static ssize_t tftp_send_data(struct tftp_client *client,
 	return len;
 }
 
+static ssize_t tftp_send_empty_data(struct tftp_client *client,
+			      unsigned int block)
+{
+	ssize_t len;
+	char *buf;
+	char *p;
+
+	buf = malloc(4);
+	p = buf;
+
+	*p++ = 0;
+	*p++ = OP_DATA;
+
+	*p++ = (block >> 8) & 0xff;
+	*p++ = block & 0xff;
+
+	// printf("[TQFTP] Sending %zd bytes of DATA\n", send_len);
+	len = send(client->sock, buf, 4, 0);
+
+	printf("[TQFTP] Sent empty final packet - %zd bytes of DATA\n", len);
+
+	free(buf);
+
+	return len;
+}
 
 static int tftp_send_ack(int sock, int block)
 {
@@ -472,12 +497,19 @@ static int handle_reader(struct tftp_client *client)
 	// printf("[TQFTP] Got ack for %d\n", last);
 
 	/* We've sent enough data for rsize already */
-	if (last * client->blksize >= client->rsize)
+	if (last * client->blksize > client->rsize)
 		return 0;
 
 	for (block = last; block < last + client->wsize; block++) {
 		size_t offset = client->seek + block * client->blksize;
 		size_t rsize = 0;
+		/* FIXME if we have blksize=7680 and rsize=53760 we send 7 full packets but then we still need to send a final empty packet for modem to be happy. Should have this in somewhat better */
+		if (block * client->blksize == client->rsize) {
+			printf("block=%d seems we're out of data but still here. sending empty packet!\n", block);
+			n = tftp_send_empty_data(client, block + 1);
+			printf("block=%d n=%ld\n", block, n);
+			break;
+		}
 		/* Check if need to limit response size based for requested rsize */
 		if (block * client->blksize + client->blksize > client->rsize)
 			rsize = client->rsize - (block * client->blksize);
