@@ -313,13 +313,13 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 		return;
 	}
 
-	printf("[TQFTP] RRQ: %s (%s)\n", filename, mode);
-
 	if (p < buf + len) {
 		do_oack = true;
 		parse_options(p, len - (p - buf), &blksize, &tsize, &wsize,
 				&timeoutms, &rsize, &seek);
 	}
+
+	printf("[TQFTP] RRQ: %s (mode=%s rsize=%ld seek=%ld)\n", filename, mode, rsize, seek);
 
 	sock = qrtr_open(0);
 	if (sock < 0) {
