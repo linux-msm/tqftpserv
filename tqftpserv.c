@@ -89,9 +89,8 @@ static ssize_t tftp_send_data(struct tftp_client *client,
 	*p++ = block & 0xff;
 
 	len = pread(client->fd, p, client->blksize, offset);
-	if (len <= 0) {
-		if (len < 0)
-			printf("[TQFTP] failed to read data\n");
+	if (len < 0) {
+		printf("[TQFTP] failed to read data\n");
 		free(buf);
 		return len;
 	}
