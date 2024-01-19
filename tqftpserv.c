@@ -74,9 +74,10 @@ static struct list_head readers = LIST_INIT(readers);
 static struct list_head writers = LIST_INIT(writers);
 
 static ssize_t tftp_send_data(struct tftp_client *client,
-			      unsigned int block, size_t offset)
+			      unsigned int block, size_t offset, size_t response_size)
 {
 	ssize_t len;
+	size_t send_len;
 	char *buf;
 	char *p;
 
@@ -98,8 +99,21 @@ static ssize_t tftp_send_data(struct tftp_client *client,
 
 	p += len;
 
-	// printf("[TQFTP] Sending %zd bytes of DATA\n", p - buf);
-	len = send(client->sock, buf, p - buf, 0);
+	/* If rsize was set, we should limit the data in the response to n bytes */
+	if (response_size != 0) {
+		/* Header (4 bytes) + data size */
+		send_len = 4 + response_size;
+		if (send_len > p - buf) {
+			printf("[TQFTP] requested data of %ld bytes but only read %ld bytes from file, rejecting\n", response_size, len);
+			free(buf);
+			return -EINVAL;
+		}
+	} else {
+		send_len = p - buf;
+	}
+
+	// printf("[TQFTP] Sending %zd bytes of DATA\n", send_len);
+	len = send(client->sock, buf, send_len, 0);
 
 	free(buf);
 
@@ -336,7 +350,7 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 			       rsize ? &rsize : NULL,
 			       seek ? &seek : NULL);
 	} else {
-		tftp_send_data(client, 1, 0);
+		tftp_send_data(client, 1, 0, 0);
 	}
 }
 
@@ -418,7 +432,7 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 			       rsize ? &rsize : NULL,
 			       seek ? &seek : NULL);
 	} else {
-		tftp_send_data(client, 1, 0);
+		tftp_send_data(client, 1, 0, 0);
 	}
 }
 
@@ -463,15 +477,28 @@ static int handle_reader(struct tftp_client *client)
 	last = buf[2] << 8 | buf[3];
 	// printf("[TQFTP] Got ack for %d\n", last);
 
+	/* We've sent enough data for rsize already */
+	if (last * client->blksize > client->rsize)
+		return 0;
+
 	for (block = last; block < last + client->wsize; block++) {
+		size_t offset = client->seek + block * client->blksize;
+		size_t response_size = 0;
+		/* Check if need to limit response size based for requested rsize */
+		if ((block + 1) * client->blksize > client->rsize)
+			response_size = client->rsize % client->blksize;
+
 		n = tftp_send_data(client, block + 1,
-				   block * client->blksize);
+				   offset, response_size);
 		if (n < 0) {
 			printf("[TQFTP] Sent block %d failed: %zd\n", block + 1, n);
 			break;
 		}
 		// printf("[TQFTP] Sent block %d of %zd\n", block + 1, n);
 		if (n == 0)
+			break;
+		/* We've sent enough data for rsize already */
+		if ((block + 1) * client->blksize > client->rsize)
 			break;
 	}
 
