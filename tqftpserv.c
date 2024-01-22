@@ -212,6 +212,13 @@ static void parse_options(const char *buf, size_t len, size_t *blksize,
 		value = p;
 		p += strlen(p) + 1;
 
+		/*
+		 * blksize: block size - how many bytes to send at once
+		 * timeoutms: timeout in milliseconds
+		 * tsize: total size - request to get file size in bytes
+		 * rsize: read size - how many bytes to send, not full file
+		 * wsize: window size - how many blocks to send without ACK
+		 */
 		if (!strcmp(opt, "blksize")) {
 			*blksize = atoi(value);
 		} else if (!strcmp(opt, "timeoutms")) {
@@ -223,7 +230,7 @@ static void parse_options(const char *buf, size_t len, size_t *blksize,
 		} else if (!strcmp(opt, "wsize")) {
 			*wsize = atoi(value);
 		} else {
-			printf("[TQFTP] Ignoring unknown option '%s'\n", opt);
+			printf("[TQFTP] Ignoring unknown option '%s' with value '%s'\n", opt, value);
 		}
 	}
 }
@@ -427,7 +434,7 @@ static int handle_reader(struct tftp_client *client)
 	opcode = buf[0] << 8 | buf[1];
 	if (opcode == OP_ERROR) {
 		buf[len] = '\0';
-		printf("[TQFTP] Remote returned an error: %s\n", buf + 4);
+		printf("[TQFTP] Remote returned an error: %d - %s\n", buf[2] << 8 | buf[3], buf + 4);
 		return -1;
 	} else if (opcode != OP_ACK) {
 		printf("[TQFTP] Expected ACK, got %d\n", opcode);
@@ -621,6 +628,10 @@ int main(int argc, char **argv)
 				case OP_WRQ:
 					// printf("[TQFTP] write\n");
 					handle_wrq(buf, len, &sq);
+					break;
+				case OP_ERROR:
+					buf[len] = '\0';
+					printf("[TQFTP] received error: %d - %s\n", buf[2] << 8 | buf[3], buf + 4);
 					break;
 				default:
 					printf("[TQFTP] unhandled op %d\n", opcode);
