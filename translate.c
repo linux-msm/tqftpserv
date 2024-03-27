@@ -53,6 +53,20 @@
 #define TQFTPSERV_TMP	"/data/vendor/tmp/tqftpserv"
 #endif
 
+static void read_fw_path_from_sysfs(char *outbuffer, size_t bufsize)
+{
+	size_t pathsize;
+	FILE *f = fopen("/sys/module/firmware_class/parameters/path", "rt");
+	if (!f)
+		return;
+	pathsize = fread(outbuffer, sizeof(char), bufsize, f);
+	fclose(f);
+	if (pathsize == 0)
+		return;
+	/* truncate newline */
+	outbuffer[pathsize - 1] = '\0';
+}
+
 /**
  * translate_readonly() - open "file" residing with remoteproc firmware
  * @file:	file requested, stripped of "/readonly/image/" prefix
@@ -72,12 +86,15 @@ static int translate_readonly(const char *file)
 	char firmware_value[PATH_MAX];
 	char firmware_attr[32];
 	char path[PATH_MAX];
+	char fw_sysfs_path[PATH_MAX];
 	struct dirent *de;
 	int firmware_fd;
 	DIR *class_dir;
 	int class_fd;
 	ssize_t n;
 	int fd = -1;
+
+	read_fw_path_from_sysfs(fw_sysfs_path, sizeof(fw_sysfs_path));
 
 	class_fd = open("/sys/class/remoteproc", O_RDONLY | O_DIRECTORY);
 	if (class_fd < 0) {
@@ -112,6 +129,23 @@ static int translate_readonly(const char *file)
 		}
 		firmware_value[n] = '\0';
 
+		/* first try path from sysfs */
+		if ((strlen(fw_sysfs_path) > 0) &&
+		    (strlen(fw_sysfs_path) + 1 + strlen(firmware_value) + 1 + strlen(file) + 1 < sizeof(path))) {
+			strcpy(path, fw_sysfs_path);
+			strcat(path, "/");
+			strcat(path, dirname(firmware_value));
+			strcat(path, "/");
+			strcat(path, file);
+
+			fd = open(path, O_RDONLY);
+			if (fd >= 0)
+				break;
+			if (errno != ENOENT)
+				warn("failed to open %s", path);
+		}
+
+		/* now try with base path */
 		if (strlen(FIRMWARE_BASE) + strlen(firmware_value) + 1 +
 		    strlen(file) + 1 > sizeof(path))
 			continue;
