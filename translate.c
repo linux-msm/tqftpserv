@@ -37,6 +37,7 @@
 #include <libgen.h>
 #include <limits.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -84,6 +85,8 @@ static void read_fw_path_from_sysfs(char *outbuffer, size_t bufsize)
 static int translate_readonly(const char *file)
 {
 	char firmware_value[PATH_MAX];
+	char *firmware_value_copy = NULL;
+	char *firmware_path;
 	char firmware_attr[32];
 	char path[PATH_MAX];
 	char fw_sysfs_path[PATH_MAX];
@@ -129,12 +132,15 @@ static int translate_readonly(const char *file)
 		}
 		firmware_value[n] = '\0';
 
+		firmware_value_copy = strdup(firmware_value);
+		firmware_path = dirname(firmware_value_copy);
+
 		/* first try path from sysfs */
 		if ((strlen(fw_sysfs_path) > 0) &&
 		    (strlen(fw_sysfs_path) + 1 + strlen(firmware_value) + 1 + strlen(file) + 1 < sizeof(path))) {
 			strcpy(path, fw_sysfs_path);
 			strcat(path, "/");
-			strcat(path, dirname(firmware_value));
+			strcat(path, firmware_path);
 			strcat(path, "/");
 			strcat(path, file);
 
@@ -151,7 +157,7 @@ static int translate_readonly(const char *file)
 			continue;
 
 		strcpy(path, FIRMWARE_BASE);
-		strcat(path, dirname(firmware_value));
+		strcat(path, firmware_path);
 		strcat(path, "/");
 		strcat(path, file);
 
@@ -163,6 +169,7 @@ static int translate_readonly(const char *file)
 			warn("failed to open %s", path);
 	}
 
+	free(firmware_value_copy);
 	closedir(class_dir);
 
 	return fd;
