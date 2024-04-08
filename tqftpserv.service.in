@@ -4,7 +4,7 @@ Requires=qrtr-ns.service
 After=qrtr-ns.service
 
 [Service]
-ExecStart=TQFTPSERV_PATH/tqftpserv
+ExecStart=@prefix@/bin/tqftpserv
 Restart=always
 
 [Install]
