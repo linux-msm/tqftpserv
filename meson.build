@@ -7,6 +7,8 @@ project('tqftpserv',
 
 prefix = get_option('prefix')
 
+zstd_dep = dependency('libzstd')
+
 # Not required to build the executable, only to install unit file
 systemd = dependency('systemd', required : false)
 if systemd.found()
@@ -21,10 +23,11 @@ endif
 qrtr_dep = dependency('qrtr')
 
 tqftpserv_srcs = ['translate.c',
-                  'tqftpserv.c']
+                  'tqftpserv.c',
+                  'zstd-decompress.c']
 executable('tqftpserv',
            tqftpserv_srcs,
-           dependencies : qrtr_dep,
+           dependencies : [qrtr_dep, zstd_dep],
            install : true)
 
 if systemd.found()
