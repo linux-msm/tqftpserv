@@ -16,6 +16,7 @@
 #include <unistd.h>
 
 #include "translate.h"
+#include "zstd-decompress.h"
 
 #define READONLY_PATH	"/readonly/firmware/image/"
 #define READWRITE_PATH	"/readwrite/"
@@ -27,6 +28,8 @@
 #define FIRMWARE_BASE	"/vendor/firmware/"
 #define TQFTPSERV_TMP	"/data/vendor/tmp/tqftpserv"
 #endif
+
+static int open_maybe_compressed(const char *path);
 
 static void read_fw_path_from_sysfs(char *outbuffer, size_t bufsize)
 {
@@ -118,7 +121,7 @@ static int translate_readonly(const char *file)
 			strcat(path, "/");
 			strcat(path, file);
 
-			fd = open(path, O_RDONLY);
+			fd = open_maybe_compressed(path);
 			if (fd >= 0)
 				break;
 			if (errno != ENOENT)
@@ -135,7 +138,8 @@ static int translate_readonly(const char *file)
 		strcat(path, "/");
 		strcat(path, file);
 
-		fd = open(path, O_RDONLY);
+		fd = open_maybe_compressed(path);
+
 		if (fd >= 0)
 			break;
 
@@ -200,4 +204,29 @@ int translate_open(const char *path, int flags)
 	fprintf(stderr, "invalid path %s, rejecting\n", path);
 	errno = ENOENT;
 	return -1;
+}
+
+/* linux-firmware uses .zst as file extension */
+#define ZSTD_EXTENSION ".zst"
+
+/**
+ * open_maybe_compressed() - open a file and maybe decompress it if necessary
+ * @filename:	path to a file that may be compressed (should not include compression format extension)
+ *
+ * Return: opened fd on success, -1 on error
+ */
+static int open_maybe_compressed(const char *path)
+{
+	int fd = -1;
+
+	if (access(path, F_OK) == 0) {
+		fd = open(path, O_RDONLY);
+	} else {
+		char *path_with_zstd_extension = NULL;
+		asprintf(&path_with_zstd_extension, "%s%s", path, ZSTD_EXTENSION);
+		fd = zstd_decompress_file(path_with_zstd_extension);
+		free(path_with_zstd_extension);
+	}
+
+	return fd;
 }
