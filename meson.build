@@ -1,5 +1,8 @@
+# SPDX-License-Identifier: BSD-3-Clause
+
 project('tqftpserv',
         'c',
+        version: '1.1',
         default_options: [
             'warning_level=1',
             'buildtype=release',
