@@ -53,7 +53,7 @@ int zstd_decompress_file(const char *filename)
 
 	const size_t file_size = file_stat.st_size;
 
-	const int input_file_fd = open(filename, 0);
+	const int input_file_fd = open(filename, O_RDONLY);
 	if (input_file_fd == -1) {
 		perror("open failed");
 		return -1;
