@@ -18,24 +18,6 @@
 
 #include "zstd-decompress.h"
 
-static ZSTD_DCtx *zstd_context = NULL;
-
-/**
- * zstd_init() - set up state for decompression. Needs to be called before zstd_decompress_file()
- */
-void zstd_init()
-{
-	zstd_context = ZSTD_createDCtx();
-}
-
-/**
- * zstd_free() - free state used for decompression. zstd_decompress_file() may not be called after this
- */
-void zstd_free()
-{
-	ZSTD_freeDCtx(zstd_context);
-}
-
 /**
  * zstd_decompress_file() - decompress a zstd-compressed file
  * @filename:	path to a file to decompress
@@ -86,7 +68,7 @@ int zstd_decompress_file(const char *filename)
 		return -1;
 	}
 
-	const size_t return_size = ZSTD_decompressDCtx(zstd_context, decompressed_buffer, decompressed_size, compressed_buffer, file_size);
+	const size_t return_size = ZSTD_decompress(decompressed_buffer, decompressed_size, compressed_buffer, file_size);
 	if (ZSTD_isError(return_size)) {
 		fprintf(stderr, "ZSTD_decompress failed: %s\n", ZSTD_getErrorName(return_size));
 		free(decompressed_buffer);

@@ -8,8 +8,6 @@
 
 #include <stdbool.h>
 
-void zstd_init();
-void zstd_free();
 int zstd_decompress_file(const char *filename);
 
 #endif
