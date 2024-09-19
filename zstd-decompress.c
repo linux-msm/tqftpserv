@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 /*
  * Copyright (c) 2024, Stefan Hansson
+ * Copyright (c) 2024, Emil Velikov
  */
 
 /* For memfd_create */
@@ -69,34 +70,43 @@ int zstd_decompress_file(const char *filename)
 	const unsigned long long decompressed_size = ZSTD_getFrameContentSize(compressed_buffer, file_size);
 	if (decompressed_size == ZSTD_CONTENTSIZE_UNKNOWN) {
 		fprintf(stderr, "Content size could not be determined for %s\n", filename);
+		munmap(compressed_buffer, file_size);
 		return -1;
 	}
 	if (decompressed_size == ZSTD_CONTENTSIZE_ERROR) {
 		fprintf(stderr, "Error getting content size for %s\n", filename);
+		munmap(compressed_buffer, file_size);
 		return -1;
 	}
 
 	void* const decompressed_buffer = malloc((size_t)decompressed_size);
 	if (decompressed_buffer == NULL) {
 		perror("malloc failed");
+		munmap(compressed_buffer, file_size);
 		return -1;
 	}
 
 	const size_t return_size = ZSTD_decompressDCtx(zstd_context, decompressed_buffer, decompressed_size, compressed_buffer, file_size);
 	if (ZSTD_isError(return_size)) {
 		fprintf(stderr, "ZSTD_decompress failed: %s\n", ZSTD_getErrorName(return_size));
+		free(decompressed_buffer);
+		munmap(compressed_buffer, file_size);
 		return -1;
 	}
 
 	const int output_file_fd = memfd_create(filename, 0);
 	if (output_file_fd == -1) {
 		perror("memfd_create failed");
+		free(decompressed_buffer);
+		munmap(compressed_buffer, file_size);
 		return -1;
 	}
 
 	if (write(output_file_fd, decompressed_buffer, decompressed_size) != decompressed_size) {
 		perror("write failed");
 		close(output_file_fd);
+		free(decompressed_buffer);
+		munmap(compressed_buffer, file_size);
 		return -1;
 	}
 
