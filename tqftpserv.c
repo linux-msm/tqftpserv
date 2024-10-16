@@ -15,7 +15,6 @@
 
 #include "list.h"
 #include "translate.h"
-#include "zstd-decompress.h"
 
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 
@@ -571,8 +570,6 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	zstd_init();
-
 	for (;;) {
 		FD_ZERO(&rfds);
 		FD_SET(fd, &rfds);
@@ -674,7 +671,6 @@ int main(int argc, char **argv)
 	}
 
 	close(fd);
-	zstd_free();
 
 	return 0;
 }

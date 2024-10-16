@@ -11,6 +11,7 @@ project('tqftpserv',
 prefix = get_option('prefix')
 
 zstd_dep = dependency('libzstd')
+add_project_arguments('-DHAVE_ZSTD', language : 'c')
 
 # Not required to build the executable, only to install unit file
 systemd = dependency('systemd', required : false)
