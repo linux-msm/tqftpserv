@@ -24,6 +24,7 @@
 #ifndef ANDROID
 #define FIRMWARE_BASE	"/lib/firmware/"
 #define TQFTPSERV_TMP	"/tmp/tqftpserv"
+#define UPDATES_DIR	"updates/"
 #else
 #define FIRMWARE_BASE	"/vendor/firmware/"
 #define TQFTPSERV_TMP	"/data/vendor/tmp/tqftpserv"
@@ -129,17 +130,25 @@ static int translate_readonly(const char *file)
 		}
 
 		/* now try with base path */
-		if (strlen(FIRMWARE_BASE) + strlen(firmware_value) + 1 +
+		if (strlen(FIRMWARE_BASE) + strlen(UPDATES_DIR) + strlen(firmware_value) + 1 +
 		    strlen(file) + 1 > sizeof(path))
 			continue;
 
 		strcpy(path, FIRMWARE_BASE);
+		strcat(path, UPDATES_DIR);
 		strcat(path, firmware_path);
 		strcat(path, "/");
 		strcat(path, file);
 
 		fd = open_maybe_compressed(path);
+		if (fd < 0) {
+			strcpy(path, FIRMWARE_BASE);
+			strcat(path, firmware_path);
+			strcat(path, "/");
+			strcat(path, file);
 
+			fd = open_maybe_compressed(path);
+		}
 		if (fd >= 0)
 			break;
 
