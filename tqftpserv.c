@@ -46,6 +46,11 @@ struct tftp_client {
 	size_t wsize;
 	unsigned int timeoutms;
 	off_t seek;
+
+	uint8_t *rw_buf;
+	size_t blk_buf_size;
+	size_t blk_offset;
+	uint16_t blk_expected;
 };
 
 static struct list_head readers = LIST_INIT(readers);
@@ -316,6 +321,12 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	client->timeoutms = timeoutms;
 	client->seek = seek;
 
+	client->rw_buf = calloc(1, client->blk_buf_size);
+	if (!client->rw_buf) {
+		printf("[TQFTP] Memory allocation failure\n");
+		return;
+	}
+
 	// printf("[TQFTP] new reader added\n");
 
 	list_add(&readers, &client->node);
@@ -397,6 +408,14 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	client->wsize = wsize;
 	client->timeoutms = timeoutms;
 	client->seek = seek;
+	client->blk_buf_size = blksize * wsize;
+	client->blk_expected = 1;
+
+	client->rw_buf = calloc(1, client->blk_buf_size);
+	if (!client->rw_buf) {
+		printf("[TQFTP] Memory allocation failure\n");
+		return;
+	}
 
 	// printf("[TQFTP] new writer added\n");
 
@@ -522,15 +541,46 @@ static int handle_writer(struct tftp_client *client)
 	}
 
 	payload = len - 4;
+	buf += 4;
 
-	ret = write(client->fd, buf + 4, payload);
-	if (ret < 0) {
-		/* XXX: report error */
-		printf("[TQFTP] failed to write data\n");
+	/* Check if we recieved expected block */
+	if (block != client->blk_expected) {
+		uint16_t blk_expected = client->blk_expected;
+
+		printf("[TQFTP] Block number out of sequence: %d (expected %d)\n",
+			 block, blk_expected);
+		tftp_send_error(client->sock, 4, "Block number out of sequence");
+
+		/* Set blk_expected to beginning of current window */
+		if ((blk_expected % client->wsize) == 0)
+			blk_expected -= client->wsize + 1;
+		else
+			blk_expected -= (blk_expected % client->wsize) - 1;
+
+		client->blk_expected = blk_expected;
+		client->blk_offset = 0;
+
 		return -1;
 	}
 
-	tftp_send_ack(client->sock, block);
+	client->blk_expected++;
+
+	/* Copy the data to the destination buffer */
+	memcpy(client->rw_buf + client->blk_offset, buf, payload);
+	client->blk_offset += payload;
+
+	/* Write to file if all the wsize blocks are recieved*/
+	if (block % client->wsize == 0) {
+		ret = write(client->fd, client->rw_buf, client->blk_offset);
+		if (ret < 0) {
+			/* XXX: report error */
+			printf("[TQFTP] failed to write data\n");
+			return -1;
+		}
+
+		client->blk_offset = 0;
+		tftp_send_ack(client->sock, block);
+	}
 
 	return payload == 512 ? 1 : 0;
 }
@@ -540,6 +590,7 @@ static void client_close_and_free(struct tftp_client *client)
 	list_del(&client->node);
 	close(client->sock);
 	close(client->fd);
+	free (client->rw_buf);
 	free(client);
 }
 
