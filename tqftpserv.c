@@ -47,6 +47,7 @@ struct tftp_client {
 	unsigned int timeoutms;
 	off_t seek;
 
+	uint8_t *blk_buf;
 	uint8_t *rw_buf;
 	size_t blk_buf_size;
 	size_t blk_offset;
@@ -61,11 +62,8 @@ static ssize_t tftp_send_data(struct tftp_client *client,
 {
 	ssize_t len;
 	size_t send_len;
-	char *buf;
-	char *p;
-
-	buf = malloc(4 + client->blksize);
-	p = buf;
+	char *buf = client->blk_buf;
+	char *p = buf;
 
 	*p++ = 0;
 	*p++ = OP_DATA;
@@ -96,11 +94,7 @@ static ssize_t tftp_send_data(struct tftp_client *client,
 	}
 
 	// printf("[TQFTP] Sending %zd bytes of DATA\n", send_len);
-	len = send(client->sock, buf, send_len, 0);
-
-	free(buf);
-
-	return len;
+	return send(client->sock, buf, send_len, 0);
 }
 
 
@@ -320,6 +314,13 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	client->wsize = wsize;
 	client->timeoutms = timeoutms;
 	client->seek = seek;
+	client->blk_buf_size = blksize * wsize;
+
+	client->blk_buf = calloc(1, blksize + 4);
+	if (!client->blk_buf) {
+		printf("[TQFTP] Memory allocation failure\n");
+		return;
+	}
 
 	client->rw_buf = calloc(1, client->blk_buf_size);
 	if (!client->rw_buf) {
@@ -410,6 +411,12 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	client->seek = seek;
 	client->blk_buf_size = blksize * wsize;
 	client->blk_expected = 1;
+
+	client->blk_buf = calloc(1, blksize + 4);
+	if (!client->blk_buf) {
+		printf("[TQFTP] Memory allocation failure\n");
+		return;
+	}
 
 	client->rw_buf = calloc(1, client->blk_buf_size);
 	if (!client->rw_buf) {
@@ -512,14 +519,14 @@ static int handle_writer(struct tftp_client *client)
 	struct sockaddr_qrtr sq;
 	uint16_t block;
 	size_t payload;
-	char buf[516];
+	uint8_t *buf = client->blk_buf;
 	socklen_t sl;
 	ssize_t len;
 	int opcode;
 	int ret;
 
 	sl = sizeof(sq);
-	len = recvfrom(client->sock, buf, sizeof(buf), 0, (void *)&sq, &sl);
+	len = recvfrom(client->sock, buf, client->blksize + 4, 0, (void *)&sq, &sl);
 	if (len < 0) {
 		ret = -errno;
 		if (ret != -ENETRESET)
@@ -569,7 +576,7 @@ static int handle_writer(struct tftp_client *client)
 	memcpy(client->rw_buf + client->blk_offset, buf, payload);
 	client->blk_offset += payload;
 
-	/* Write to file if all the wsize blocks are recieved*/
+	/* Write to file if all the wsize blocks are recieved */
 	if (block % client->wsize == 0) {
 		ret = write(client->fd, client->rw_buf, client->blk_offset);
 		if (ret < 0) {
@@ -582,7 +589,7 @@ static int handle_writer(struct tftp_client *client)
 		tftp_send_ack(client->sock, block);
 	}
 
-	return payload == 512 ? 1 : 0;
+	return payload == client->blksize ? 1 : 0;
 }
 
 static void client_close_and_free(struct tftp_client *client)
@@ -590,6 +597,7 @@ static void client_close_and_free(struct tftp_client *client)
 	list_del(&client->node);
 	close(client->sock);
 	close(client->fd);
+	free (client->blk_buf);
 	free (client->rw_buf);
 	free(client);
 }
