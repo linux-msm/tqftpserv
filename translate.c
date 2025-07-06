@@ -226,16 +226,18 @@ int translate_open(const char *path, int flags)
  */
 static int open_maybe_compressed(const char *path)
 {
+	char *path_with_zstd_extension = NULL;
 	int fd = -1;
 
-	if (access(path, F_OK) == 0) {
-		fd = open(path, O_RDONLY);
-	} else {
-		char *path_with_zstd_extension = NULL;
-		asprintf(&path_with_zstd_extension, "%s%s", path, ZSTD_EXTENSION);
+	if (access(path, F_OK) == 0)
+		return open(path, O_RDONLY);
+
+	asprintf(&path_with_zstd_extension, "%s%s", path, ZSTD_EXTENSION);
+
+	if (access(path_with_zstd_extension, F_OK) == 0)
 		fd = zstd_decompress_file(path_with_zstd_extension);
-		free(path_with_zstd_extension);
-	}
+
+	free(path_with_zstd_extension);
 
 	return fd;
 }
