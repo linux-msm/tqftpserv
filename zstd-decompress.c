@@ -9,6 +9,7 @@
 
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,7 +30,7 @@ int zstd_decompress_file(const char *filename)
 	/* Figure out the size of the file. */
 	struct stat file_stat;
 	if (stat(filename, &file_stat) == -1) {
-		perror("stat failed");
+		fprintf(stderr, "stat %s failed (%s)\n", filename, strerror(errno));
 		return -1;
 	}
 
