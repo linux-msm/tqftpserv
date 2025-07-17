@@ -254,7 +254,7 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	size_t blksize = 512;
 	unsigned int timeoutms = 1000;
 	size_t rsize = 0;
-	size_t wsize = 0;
+	size_t wsize = 1;
 	off_t seek = 0;
 	bool do_oack = false;
 	int sock;
@@ -352,7 +352,7 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	size_t blksize = 512;
 	unsigned int timeoutms = 1000;
 	size_t rsize = 0;
-	size_t wsize = 0;
+	size_t wsize = 1;
 	off_t seek = 0;
 	bool do_oack = false;
 	int sock;
