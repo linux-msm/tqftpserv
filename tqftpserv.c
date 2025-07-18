@@ -60,11 +60,8 @@ static ssize_t tftp_send_data(struct tftp_client *client,
 {
 	ssize_t len;
 	size_t send_len;
-	char *buf;
-	char *p;
-
-	buf = malloc(4 + client->blksize);
-	p = buf;
+	char *buf = client->blk_buf;
+	char *p = buf;
 
 	*p++ = 0;
 	*p++ = OP_DATA;
@@ -95,11 +92,7 @@ static ssize_t tftp_send_data(struct tftp_client *client,
 	}
 
 	// printf("[TQFTP] Sending %zd bytes of DATA\n", send_len);
-	len = send(client->sock, buf, send_len, 0);
-
-	free(buf);
-
-	return len;
+	return send(client->sock, buf, send_len, 0);
 }
 
 
@@ -523,14 +516,14 @@ static int handle_writer(struct tftp_client *client)
 	struct sockaddr_qrtr sq;
 	uint16_t block;
 	size_t payload;
-	char buf[516];
+	uint8_t *buf = client->blk_buf;
 	socklen_t sl;
 	ssize_t len;
 	int opcode;
 	int ret;
 
 	sl = sizeof(sq);
-	len = recvfrom(client->sock, buf, sizeof(buf), 0, (void *)&sq, &sl);
+	len = recvfrom(client->sock, buf, client->blksize + 4, 0, (void *)&sq, &sl);
 	if (len < 0) {
 		ret = -errno;
 		if (ret != -ENETRESET)
@@ -562,7 +555,7 @@ static int handle_writer(struct tftp_client *client)
 
 	tftp_send_ack(client->sock, block);
 
-	return payload == 512 ? 1 : 0;
+	return payload == client->blksize ? 1 : 0;
 }
 
 static void client_close_and_free(struct tftp_client *client)
