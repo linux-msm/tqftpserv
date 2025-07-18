@@ -46,6 +46,9 @@ struct tftp_client {
 	size_t wsize;
 	unsigned int timeoutms;
 	off_t seek;
+
+	uint8_t *rw_buf;
+	size_t rw_buf_size;
 };
 
 static struct list_head readers = LIST_INIT(readers);
@@ -315,6 +318,13 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	client->wsize = wsize;
 	client->timeoutms = timeoutms;
 	client->seek = seek;
+	client->rw_buf_size = blksize * wsize;
+
+	client->rw_buf = calloc(1, client->rw_buf_size);
+	if (!client->rw_buf) {
+		printf("[TQFTP] Memory allocation failure\n");
+		return;
+	}
 
 	// printf("[TQFTP] new reader added\n");
 
@@ -397,6 +407,13 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	client->wsize = wsize;
 	client->timeoutms = timeoutms;
 	client->seek = seek;
+	client->rw_buf_size = blksize * wsize;
+
+	client->rw_buf = calloc(1, client->rw_buf_size);
+	if (!client->rw_buf) {
+		printf("[TQFTP] Memory allocation failure\n");
+		return;
+	}
 
 	// printf("[TQFTP] new writer added\n");
 
@@ -540,6 +557,7 @@ static void client_close_and_free(struct tftp_client *client)
 	list_del(&client->node);
 	close(client->sock);
 	close(client->fd);
+	free (client->rw_buf);
 	free(client);
 }
 
