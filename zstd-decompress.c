@@ -85,7 +85,7 @@ int zstd_decompress_file(const char *filename)
 		return -1;
 	}
 
-	if (write(output_file_fd, decompressed_buffer, decompressed_size) != decompressed_size) {
+	if (write(output_file_fd, decompressed_buffer, decompressed_size) != (ssize_t)decompressed_size) {
 		perror("write failed");
 		close(output_file_fd);
 		free(decompressed_buffer);

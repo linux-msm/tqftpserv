@@ -2,6 +2,10 @@
 /*
  * Copyright (c) 2019, Linaro Ltd.
  */
+
+/* For asprintf */
+#define _GNU_SOURCE
+
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <dirent.h>
@@ -232,7 +236,8 @@ static int open_maybe_compressed(const char *path)
 	if (access(path, F_OK) == 0)
 		return open(path, O_RDONLY);
 
-	asprintf(&path_with_zstd_extension, "%s%s", path, ZSTD_EXTENSION);
+	if (asprintf(&path_with_zstd_extension, "%s%s", path, ZSTD_EXTENSION) == -1)
+		return -1;
 
 	if (access(path_with_zstd_extension, F_OK) == 0)
 		fd = zstd_decompress_file(path_with_zstd_extension);

@@ -13,7 +13,7 @@ int zstd_decompress_file(const char *filename);
 #else
 static int zstd_decompress_file(const char *filename)
 {
-	fprintf(stderr, "Built without ZSTD support\n");
+	fprintf(stderr, "Built without ZSTD support: %s\n", filename);
 	return -1;
 }
 #endif

@@ -61,9 +61,9 @@ static ssize_t tftp_send_data(struct tftp_client *client,
 			      unsigned int block, size_t offset, size_t response_size)
 {
 	ssize_t len;
-	size_t send_len;
-	char *buf = client->blk_buf;
-	char *p = buf;
+	ssize_t send_len;
+	uint8_t *buf = client->blk_buf;
+	uint8_t *p = buf;
 
 	*p++ = 0;
 	*p++ = OP_DATA;
@@ -108,7 +108,7 @@ static int tftp_send_ack(int sock, int block)
 	return send(sock, &ack, sizeof(ack), 0);
 }
 
-static int tftp_send_oack(int sock, size_t *blocksize, size_t *tsize,
+static int tftp_send_oack(int sock, size_t *blocksize, ssize_t *tsize,
 			  size_t *wsize, unsigned int *timeoutms, size_t *rsize,
 			  off_t *seek)
 {
@@ -334,7 +334,7 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 
 	if (do_oack) {
 		tftp_send_oack(client->sock, &blksize,
-			       tsize ? (size_t*)&tsize : NULL,
+			       tsize ? &tsize : NULL,
 			       wsize ? &wsize : NULL,
 			       &client->timeoutms,
 			       rsize ? &rsize : NULL,
@@ -430,7 +430,7 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 
 	if (do_oack) {
 		tftp_send_oack(client->sock, &blksize,
-			       tsize ? (size_t*)&tsize : NULL,
+			       tsize ? &tsize : NULL,
 			       wsize ? &wsize : NULL,
 			       &client->timeoutms,
 			       rsize ? &rsize : NULL,
@@ -602,7 +602,7 @@ static void client_close_and_free(struct tftp_client *client)
 	free(client);
 }
 
-int main(int argc, char **argv)
+int main()
 {
 	struct tftp_client *client;
 	struct tftp_client *next;
