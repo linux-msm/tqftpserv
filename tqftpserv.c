@@ -16,6 +16,7 @@
 #include "list.h"
 #include "translate.h"
 #include "logging.h"
+#include "config.h"
 
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 
@@ -603,7 +604,7 @@ static void client_close_and_free(struct tftp_client *client)
 	free(client);
 }
 
-int main()
+int main(int argc, char **argv)
 {
 	struct tftp_client *client;
 	struct tftp_client *next;
@@ -617,6 +618,27 @@ int main()
 	int opcode;
 	int ret;
 	int fd;
+
+	/* Initialize configuration with defaults */
+	tqftp_config_init_defaults(&tqftp_config);
+
+	/* Parse command line arguments */
+	ret = tqftp_config_parse_args(argc, argv, &tqftp_config);
+	if (ret == 1) {
+		/* Help was shown */
+		return 0;
+	} else if (ret < 0) {
+		/* Error in arguments */
+		return 1;
+	}
+
+	/* Initialize logging */
+	tqftp_log_init_with_config(&tqftp_config.log_config);
+
+	TQFTP_LOG_INFO("TQFTP server starting");
+	TQFTP_LOG_DEBUG("Configuration: readonly_path=%s, readwrite_path=%s, firmware_base=%s, temp_dir=%s",
+			tqftp_config.readonly_path, tqftp_config.readwrite_path,
+			tqftp_config.firmware_base, tqftp_config.temp_dir);
 
 	fd = qrtr_open(0);
 	if (fd < 0) {

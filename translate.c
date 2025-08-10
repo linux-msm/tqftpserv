@@ -22,17 +22,7 @@
 #include "translate.h"
 #include "zstd-decompress.h"
 #include "logging.h"
-#define READONLY_PATH	"/readonly/firmware/image/"
-#define READWRITE_PATH	"/readwrite/"
-
-#ifndef ANDROID
-#define FIRMWARE_BASE	"/lib/firmware/"
-#define TQFTPSERV_TMP	"/tmp/tqftpserv"
-#define UPDATES_DIR	"updates/"
-#else
-#define FIRMWARE_BASE	"/vendor/firmware/"
-#define TQFTPSERV_TMP	"/data/vendor/tmp/tqftpserv"
-#endif
+#include "config.h"
 
 static int open_maybe_compressed(const char *path);
 
@@ -134,19 +124,19 @@ static int translate_readonly(const char *file)
 		}
 
 		/* now try with base path */
-		if (strlen(FIRMWARE_BASE) + strlen(UPDATES_DIR) + strlen(firmware_value) + 1 +
+		if (strlen(tqftp_config.firmware_base) + strlen(tqftp_config.updates_dir) + strlen(firmware_value) + 1 +
 		    strlen(file) + 1 > sizeof(path))
 			continue;
 
-		strcpy(path, FIRMWARE_BASE);
-		strcat(path, UPDATES_DIR);
+		strcpy(path, tqftp_config.firmware_base);
+		strcat(path, tqftp_config.updates_dir);
 		strcat(path, firmware_path);
 		strcat(path, "/");
 		strcat(path, file);
 
 		fd = open_maybe_compressed(path);
 		if (fd < 0) {
-			strcpy(path, FIRMWARE_BASE);
+			strcpy(path, tqftp_config.firmware_base);
 			strcat(path, firmware_path);
 			strcat(path, "/");
 			strcat(path, file);
@@ -179,17 +169,17 @@ static int translate_readwrite(const char *file, int flags)
 	int ret;
 	int fd;
 
-	ret = mkdir(TQFTPSERV_TMP, 0700);
+	ret = mkdir(tqftp_config.temp_dir, 0700);
 	if (ret < 0 && errno != EEXIST) {
 		TQFTP_LOG_WARN("failed to create temporary tqftpserv directory %s: %s",
-				TQFTPSERV_TMP, strerror(errno));
+				tqftp_config.temp_dir, strerror(errno));
 		return -1;
 	}
 
-	base = open(TQFTPSERV_TMP, O_RDONLY | O_DIRECTORY);
+	base = open(tqftp_config.temp_dir, O_RDONLY | O_DIRECTORY);
 	if (base < 0) {
 		TQFTP_LOG_WARN("failed to open temporary tqftpserv directory %s: %s",
-				TQFTPSERV_TMP, strerror(errno));
+				tqftp_config.temp_dir, strerror(errno));
 		return -1;
 	}
 
@@ -211,10 +201,10 @@ static int translate_readwrite(const char *file, int flags)
  */
 int translate_open(const char *path, int flags)
 {
-	if (!strncmp(path, READONLY_PATH, strlen(READONLY_PATH)))
-		return translate_readonly(path + strlen(READONLY_PATH));
-	else if (!strncmp(path, READWRITE_PATH, strlen(READWRITE_PATH)))
-		return translate_readwrite(path + strlen(READWRITE_PATH), flags);
+	if (!strncmp(path, tqftp_config.readonly_path, strlen(tqftp_config.readonly_path)))
+		return translate_readonly(path + strlen(tqftp_config.readonly_path));
+	else if (!strncmp(path, tqftp_config.readwrite_path, strlen(tqftp_config.readwrite_path)))
+		return translate_readwrite(path + strlen(tqftp_config.readwrite_path), flags);
 
 	TQFTP_LOG_ERR("invalid path %s, rejecting", path);
 	errno = ENOENT;
