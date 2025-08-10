@@ -30,7 +30,8 @@ endif
 
 qrtr_dep = dependency('qrtr')
 
-tqftpserv_srcs = ['translate.c',
+tqftpserv_srcs = ['logging.c',
+                  'translate.c',
                   'tqftpserv.c',
                   'zstd-decompress.c']
 executable('tqftpserv',
