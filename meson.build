@@ -17,6 +17,8 @@ add_project_arguments('-Wsign-compare', '-Wunused-parameter', '-Wtype-limits', '
 zstd_dep = dependency('libzstd')
 add_project_arguments('-DHAVE_ZSTD', language : 'c')
 
+libconfig_dep = dependency('libconfig')
+
 # Not required to build the executable, only to install unit file
 systemd = dependency('systemd', required : false)
 if systemd.found()
@@ -30,13 +32,14 @@ endif
 
 qrtr_dep = dependency('qrtr')
 
-tqftpserv_srcs = ['logging.c',
+tqftpserv_srcs = ['config.c',
+                  'logging.c',
                   'translate.c',
                   'tqftpserv.c',
                   'zstd-decompress.c']
 executable('tqftpserv',
            tqftpserv_srcs,
-           dependencies : [qrtr_dep, zstd_dep],
+           dependencies : [qrtr_dep, zstd_dep, libconfig_dep],
            install : true)
 
 if systemd.found()

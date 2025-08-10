@@ -2,6 +2,7 @@ cc_binary {
     name: "tqftpserv",
     vendor: true,
     srcs: [
+        "config.c",
         "logging.c",
         "tqftpserv.c",
         "translate.c",
