@@ -7,5 +7,5 @@ cc_binary {
         "tqftpserv.c",
         "translate.c",
     ],
-    shared_libs: ["libqrtr"],
+    shared_libs: ["libqrtr", "libconfig"],
 }
