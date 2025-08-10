@@ -7,13 +7,14 @@
 #define __ZSTD_DECOMPRESS_H__
 
 #include <stdbool.h>
+#include "logging.h"
 
 #ifdef HAVE_ZSTD
 int zstd_decompress_file(const char *filename);
 #else
 static int zstd_decompress_file(const char *filename)
 {
-	fprintf(stderr, "Built without ZSTD support: %s\n", filename);
+	TQFTP_LOG_ERR("Built without ZSTD support: %s", filename);
 	return -1;
 }
 #endif

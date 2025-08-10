@@ -21,7 +21,7 @@
 
 #include "translate.h"
 #include "zstd-decompress.h"
-
+#include "logging.h"
 #define READONLY_PATH	"/readonly/firmware/image/"
 #define READWRITE_PATH	"/readwrite/"
 
@@ -157,7 +157,7 @@ static int translate_readonly(const char *file)
 			break;
 
 		if (errno != ENOENT)
-			warn("failed to open %s", path);
+			TQFTP_LOG_WARN("failed to open %s: %s", path, strerror(errno));
 	}
 
 	free(firmware_value_copy);
@@ -181,20 +181,22 @@ static int translate_readwrite(const char *file, int flags)
 
 	ret = mkdir(TQFTPSERV_TMP, 0700);
 	if (ret < 0 && errno != EEXIST) {
-		warn("failed to create temporary tqftpserv directory");
+		TQFTP_LOG_WARN("failed to create temporary tqftpserv directory %s: %s",
+				TQFTPSERV_TMP, strerror(errno));
 		return -1;
 	}
 
 	base = open(TQFTPSERV_TMP, O_RDONLY | O_DIRECTORY);
 	if (base < 0) {
-		warn("failed top open temporary tqftpserv directory");
+		TQFTP_LOG_WARN("failed to open temporary tqftpserv directory %s: %s",
+				TQFTPSERV_TMP, strerror(errno));
 		return -1;
 	}
 
 	fd = openat(base, file, flags, 0600);
 	close(base);
 	if (fd < 0)
-		warn("failed to open %s", file);
+		TQFTP_LOG_WARN("failed to open %s: %s", file, strerror(errno));
 
 	return fd;
 }
@@ -214,7 +216,7 @@ int translate_open(const char *path, int flags)
 	else if (!strncmp(path, READWRITE_PATH, strlen(READWRITE_PATH)))
 		return translate_readwrite(path + strlen(READWRITE_PATH), flags);
 
-	fprintf(stderr, "invalid path %s, rejecting\n", path);
+	TQFTP_LOG_ERR("invalid path %s, rejecting", path);
 	errno = ENOENT;
 	return -1;
 }

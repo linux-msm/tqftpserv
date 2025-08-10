@@ -15,6 +15,7 @@
 
 #include "list.h"
 #include "translate.h"
+#include "logging.h"
 
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 
@@ -73,7 +74,7 @@ static ssize_t tftp_send_data(struct tftp_client *client,
 
 	len = pread(client->fd, p, client->blksize, offset);
 	if (len < 0) {
-		printf("[TQFTP] failed to read data\n");
+		TQFTP_LOG_ERR("failed to read data");
 		free(buf);
 		return len;
 	}
@@ -234,7 +235,7 @@ static void parse_options(const char *buf, size_t len, size_t *blksize,
 		} else if (!strcmp(opt, "seek")) {
 			*seek = atoi(value);
 		} else {
-			printf("[TQFTP] Ignoring unknown option '%s' with value '%s'\n", opt, value);
+			TQFTP_LOG_WARN("Ignoring unknown option '%s' with value '%s'", opt, value);
 		}
 	}
 }
@@ -267,7 +268,7 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 
 	if (strcasecmp(mode, "octet")) {
 		/* XXX: error */
-		printf("[TQFTP] not octet, reject\n");
+		TQFTP_LOG_ERR("Mode is not octet, reject");
 		return;
 	}
 
@@ -277,25 +278,25 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 				&timeoutms, &rsize, &seek);
 	}
 
-	printf("[TQFTP] RRQ: %s (mode=%s rsize=%ld seek=%ld)\n", filename, mode, rsize, seek);
+	TQFTP_LOG_DEBUG("RRQ: %s (mode=%s rsize=%ld seek=%ld)", filename, mode, rsize, seek);
 
 	sock = qrtr_open(0);
 	if (sock < 0) {
 		/* XXX: error */
-		printf("[TQFTP] unable to create new qrtr socket, reject\n");
+		TQFTP_LOG_ERR("unable to create new qrtr socket, reject");
 		return;
 	}
 
 	ret = connect(sock, (struct sockaddr *)sq, sizeof(*sq));
 	if (ret < 0) {
 		/* XXX: error */
-		printf("[TQFTP] unable to connect new qrtr socket to remote\n");
+		TQFTP_LOG_ERR("unable to connect new qrtr socket to remote");
 		return;
 	}
 
 	fd = translate_open(filename, O_RDONLY);
 	if (fd < 0) {
-		printf("[TQFTP] unable to open %s (%d), reject\n", filename, errno);
+		TQFTP_LOG_ERR("unable to open %s (%d), reject", filename, errno);
 		tftp_send_error(sock, 1, "file not found");
 		return;
 	}
@@ -318,17 +319,17 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 
 	client->blk_buf = calloc(1, blksize + 4);
 	if (!client->blk_buf) {
-		printf("[TQFTP] Memory allocation failure\n");
+		TQFTP_LOG_ERR("Memory allocation failure");
 		return;
 	}
 
 	client->rw_buf = calloc(1, client->rw_buf_size);
 	if (!client->rw_buf) {
-		printf("[TQFTP] Memory allocation failure\n");
+		TQFTP_LOG_ERR("Memory allocation failure");
 		return;
 	}
 
-	// printf("[TQFTP] new reader added\n");
+	TQFTP_LOG_DEBUG("new reader added");
 
 	list_add(&readers, &client->node);
 
@@ -367,11 +368,11 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 
 	if (strcasecmp(mode, "octet")) {
 		/* XXX: error */
-		printf("[TQFTP] not octet, reject\n");
+		TQFTP_LOG_ERR("not octet, reject");
 		return;
 	}
 
-	printf("[TQFTP] WRQ: %s (%s)\n", filename, mode);
+	TQFTP_LOG_DEBUG("WRQ: %s (%s)", filename, mode);
 
 	if (p < buf + len) {
 		do_oack = true;
@@ -382,21 +383,21 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	fd = translate_open(filename, O_WRONLY | O_CREAT);
 	if (fd < 0) {
 		/* XXX: error */
-		printf("[TQFTP] unable to open %s (%d), reject\n", filename, errno);
+		TQFTP_LOG_ERR("unable to open %s (%d), reject", filename, errno);
 		return;
 	}
 
 	sock = qrtr_open(0);
 	if (sock < 0) {
 		/* XXX: error */
-		printf("[TQFTP] unable to create new qrtr socket, reject\n");
+		TQFTP_LOG_ERR("unable to create new qrtr socket, reject");
 		return;
 	}
 
 	ret = connect(sock, (struct sockaddr *)sq, sizeof(*sq));
 	if (ret < 0) {
 		/* XXX: error */
-		printf("[TQFTP] unable to connect new qrtr socket to remote\n");
+		TQFTP_LOG_ERR("unable to connect new qrtr socket to remote");
 		return;
 	}
 
@@ -414,17 +415,17 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 
 	client->blk_buf = calloc(1, blksize + 4);
 	if (!client->blk_buf) {
-		printf("[TQFTP] Memory allocation failure\n");
+		TQFTP_LOG_ERR("Memory allocation failure");
 		return;
 	}
 
 	client->rw_buf = calloc(1, client->rw_buf_size);
 	if (!client->rw_buf) {
-		printf("[TQFTP] Memory allocation failure\n");
+		TQFTP_LOG_ERR("Memory allocation failure");
 		return;
 	}
 
-	// printf("[TQFTP] new writer added\n");
+	TQFTP_LOG_DEBUG("new writer added");
 
 	list_add(&writers, &client->node);
 
@@ -457,14 +458,14 @@ static int handle_reader(struct tftp_client *client)
 	if (len < 0) {
 		ret = -errno;
 		if (ret != -ENETRESET)
-			fprintf(stderr, "[TQFTP] recvfrom failed: %d\n", ret);
+			TQFTP_LOG_ERROR("recvfrom failed: %d", ret);
 		return -1;
 	}
 
 	/* Drop unsolicited messages */
 	if (sq.sq_node != client->sq.sq_node ||
 	    sq.sq_port != client->sq.sq_port) {
-		printf("[TQFTP] Discarding spoofed message\n");
+		TQFTP_LOG_ERR("Discarding spoofed message");
 		return -1;
 	}
 
@@ -474,12 +475,12 @@ static int handle_reader(struct tftp_client *client)
 		int err = buf[2] << 8 | buf[3];
 		/* "End of Transfer" is not an error, used with stat(2)-like calls */
 		if (err == ERROR_END_OF_TRANSFER)
-			printf("[TQFTP] Remote returned END OF TRANSFER: %d - %s\n", err, buf + 4);
+			TQFTP_LOG_DEBUG("Remote returned END OF TRANSFER: %d - %s", err, buf + 4);
 		else
-			printf("[TQFTP] Remote returned an error: %d - %s\n", err, buf + 4);
+			TQFTP_LOG_ERR("Remote returned an error: %d - %s", err, buf + 4);
 		return -1;
 	} else if (opcode != OP_ACK) {
-		printf("[TQFTP] Expected ACK, got %d\n", opcode);
+		TQFTP_LOG_ERR("Expected ACK, got %d", opcode);
 		return -1;
 	}
 
@@ -500,7 +501,7 @@ static int handle_reader(struct tftp_client *client)
 		n = tftp_send_data(client, block + 1,
 				   offset, response_size);
 		if (n < 0) {
-			printf("[TQFTP] Sent block %d failed: %zd\n", block + 1, n);
+			TQFTP_LOG_ERR("Sent block %d failed: %zd", block + 1, n);
 			break;
 		}
 		// printf("[TQFTP] Sent block %d of %zd\n", block + 1, n);
@@ -530,7 +531,7 @@ static int handle_writer(struct tftp_client *client)
 	if (len < 0) {
 		ret = -errno;
 		if (ret != -ENETRESET)
-			fprintf(stderr, "[TQFTP] recvfrom failed: %d\n", ret);
+			TQFTP_LOG_ERROR("recvfrom failed: %d", ret);
 		return -1;
 	}
 
@@ -542,7 +543,7 @@ static int handle_writer(struct tftp_client *client)
 	opcode = buf[0] << 8 | buf[1];
 	block = buf[2] << 8 | buf[3];
 	if (opcode != OP_DATA) {
-		printf("[TQFTP] Expected DATA opcode, got %d\n", opcode);
+		TQFTP_LOG_ERR("Expected DATA opcode, got %d", opcode);
 		tftp_send_error(client->sock, 4, "Expected DATA opcode");
 		return -1;
 	}
@@ -554,7 +555,7 @@ static int handle_writer(struct tftp_client *client)
 	if (block != client->blk_expected) {
 		uint16_t blk_expected = client->blk_expected;
 
-		printf("[TQFTP] Block number out of sequence: %d (expected %d)\n",
+		TQFTP_LOG_ERR("Block number out of sequence: %d (expected %d)",
 			 block, blk_expected);
 		tftp_send_error(client->sock, 4, "Block number out of sequence");
 
@@ -581,7 +582,7 @@ static int handle_writer(struct tftp_client *client)
 		ret = write(client->fd, client->rw_buf, client->blk_offset);
 		if (ret < 0) {
 			/* XXX: report error */
-			printf("[TQFTP] failed to write data\n");
+			TQFTP_LOG_ERR("failed to write data");
 			return -1;
 		}
 
@@ -619,15 +620,17 @@ int main()
 
 	fd = qrtr_open(0);
 	if (fd < 0) {
-		fprintf(stderr, "failed to open qrtr socket\n");
+		TQFTP_LOG_ERR("failed to open qrtr socket");
 		exit(1);
 	}
 
 	ret = qrtr_publish(fd, 4096, 1, 0);
 	if (ret < 0) {
-		fprintf(stderr, "failed to publish service registry service\n");
+		TQFTP_LOG_ERR("failed to publish service registry service");
 		exit(1);
 	}
+
+	TQFTP_LOG_INFO("TQFTP server ready, listening for connections");
 
 	for (;;) {
 		FD_ZERO(&rfds);
@@ -649,7 +652,7 @@ int main()
 			if (errno == EINTR) {
 				continue;
 			} else {
-				fprintf(stderr, "select failed\n");
+				TQFTP_LOG_ERROR("select failed");
 				break;
 			}
 		}
@@ -676,7 +679,7 @@ int main()
 			if (len < 0) {
 				ret = -errno;
 				if (ret != -ENETRESET)
-					fprintf(stderr, "[TQFTP] recvfrom failed: %d\n", ret);
+					TQFTP_LOG_ERROR("recvfrom failed: %d", ret);
 				return ret;
 			}
 
@@ -684,20 +687,20 @@ int main()
 			if (sq.sq_port == QRTR_PORT_CTRL) {
 				ret = qrtr_decode(&pkt, buf, len, &sq);
 				if (ret < 0) {
-					fprintf(stderr, "[TQFTP] unable to decode qrtr packet\n");
+					TQFTP_LOG_ERROR("unable to decode qrtr packet");
 					return ret;
 				}
 
 				switch (pkt.type) {
 				case QRTR_TYPE_BYE:
-					// fprintf(stderr, "[TQFTP] got bye\n");
+					TQFTP_LOG_DEBUG("Got bye on QRTE_PORT_CTRL port");
 					list_for_each_entry_safe(client, next, &writers, node) {
 						if (client->sq.sq_node == sq.sq_node)
 							client_close_and_free(client);
 					}
 					break;
 				case QRTR_TYPE_DEL_CLIENT:
-					// fprintf(stderr, "[TQFTP] got del_client\n");
+					TQFTP_LOG_DEBUG("Got DEL_CLIENT on QRTE_PORT_CTRL port");
 					list_for_each_entry_safe(client, next, &writers, node) {
 						if (!memcmp(&client->sq, &sq, sizeof(sq)))
 							client_close_and_free(client);
@@ -711,18 +714,19 @@ int main()
 				opcode = buf[0] << 8 | buf[1];
 				switch (opcode) {
 				case OP_RRQ:
+					TQFTP_LOG_DEBUG("Got OP_WRQ");
 					handle_rrq(buf, len, &sq);
 					break;
 				case OP_WRQ:
-					// printf("[TQFTP] write\n");
+					TQFTP_LOG_DEBUG("Got OP_WRQ");
 					handle_wrq(buf, len, &sq);
 					break;
 				case OP_ERROR:
 					buf[len] = '\0';
-					printf("[TQFTP] received error: %d - %s\n", buf[2] << 8 | buf[3], buf + 4);
+					TQFTP_LOG_ERR("received error: %d - %s", buf[2] << 8 | buf[3], buf + 4);
 					break;
 				default:
-					printf("[TQFTP] unhandled op %d\n", opcode);
+					TQFTP_LOG_ERR("unhandled op %d", opcode);
 					break;
 				}
 			}
