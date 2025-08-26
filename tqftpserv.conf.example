@@ -1,0 +1,63 @@
+# TQFTP Server Configuration File
+# This file demonstrates all available configuration options
+
+# Path Configuration
+# These paths control where the server looks for files and stores temporary data
+
+# Readonly path prefix - where readonly firmware files are accessed
+readonly_path=/readonly/firmware/image/
+
+# Readwrite path prefix - where temporary/writable files are stored
+readwrite_path=/readwrite/
+
+# Firmware base directory - where firmware files are located
+firmware_base=/lib/firmware/
+
+# Updates directory name - subdirectory within firmware_base for updates
+updates_dir=updates/
+
+# Temporary directory - where the server stores temporary files
+temp_dir=/tmp/tqftpserv
+
+# Logging Configuration
+# Controls how and where log messages are output
+
+# Minimum log level to output
+# Options: emerg, alert, crit, err, warn, notice, info, debug
+# Default: info
+log_level=info
+
+# Syslog facility to use
+# Options: daemon, user, mail, news, uucp, authpriv, ftp, cron, syslog, local0-7
+# Default: daemon
+log_facility=daemon
+
+# Whether to log to console instead of syslog
+# Options: yes, no, true, false, 1, 0
+# Default: no
+log_console=no
+
+# Example configurations for different environments:
+
+# Development configuration (uncomment to use):
+# log_level=debug
+# log_console=yes
+# temp_dir=/tmp/tqftpserv-dev
+
+# Production configuration (uncomment to use):
+# log_level=warn
+# log_facility=local0
+# temp_dir=/var/tmp/tqftpserv
+
+# Android configuration (uncomment to use):
+# firmware_base=/vendor/firmware/
+# temp_dir=/data/vendor/tmp/tqftpserv
+# log_level=info
+# log_console=no
+
+# Custom embedded system configuration (uncomment to use):
+# readonly_path=/mnt/firmware/readonly/
+# readwrite_path=/mnt/firmware/readwrite/
+# firmware_base=/mnt/firmware/base/
+# temp_dir=/mnt/tmp/tqftpserv
+# log_level=notice

@@ -30,7 +30,7 @@ int zstd_decompress_file(const char *filename)
 	/* Figure out the size of the file. */
 	struct stat file_stat;
 	if (stat(filename, &file_stat) == -1) {
-		fprintf(stderr, "stat %s failed (%s)\n", filename, strerror(errno));
+		TQFTP_LOG_ERRNO("stat %s failed", filename);
 		return -1;
 	}
 
@@ -38,13 +38,13 @@ int zstd_decompress_file(const char *filename)
 
 	const int input_file_fd = open(filename, O_RDONLY);
 	if (input_file_fd == -1) {
-		perror("open failed");
+		TQFTP_LOG_PERROR("open failed");
 		return -1;
 	}
 
 	void* const compressed_buffer = mmap(NULL, file_size, PROT_READ, MAP_POPULATE | MAP_PRIVATE, input_file_fd, 0);
 	if (compressed_buffer == MAP_FAILED) {
-		perror("mmap failed");
+		TQFTP_LOG_PERROR("mmap failed");
 		close(input_file_fd);
 		return -1;
 	}
@@ -52,26 +52,26 @@ int zstd_decompress_file(const char *filename)
 
 	const unsigned long long decompressed_size = ZSTD_getFrameContentSize(compressed_buffer, file_size);
 	if (decompressed_size == ZSTD_CONTENTSIZE_UNKNOWN) {
-		fprintf(stderr, "Content size could not be determined for %s\n", filename);
+		TQFTP_LOG_ERR("Content size could not be determined for %s", filename);
 		munmap(compressed_buffer, file_size);
 		return -1;
 	}
 	if (decompressed_size == ZSTD_CONTENTSIZE_ERROR) {
-		fprintf(stderr, "Error getting content size for %s\n", filename);
+		TQFTP_LOG_ERR("Error getting content size for %s", filename);
 		munmap(compressed_buffer, file_size);
 		return -1;
 	}
 
 	void* const decompressed_buffer = malloc((size_t)decompressed_size);
 	if (decompressed_buffer == NULL) {
-		perror("malloc failed");
+		TQFTP_LOG_PERROR("malloc failed");
 		munmap(compressed_buffer, file_size);
 		return -1;
 	}
 
 	const size_t return_size = ZSTD_decompress(decompressed_buffer, decompressed_size, compressed_buffer, file_size);
 	if (ZSTD_isError(return_size)) {
-		fprintf(stderr, "ZSTD_decompress failed: %s\n", ZSTD_getErrorName(return_size));
+		TQFTP_LOG_ERR("ZSTD_decompress failed: %s", ZSTD_getErrorName(return_size));
 		free(decompressed_buffer);
 		munmap(compressed_buffer, file_size);
 		return -1;
@@ -79,14 +79,14 @@ int zstd_decompress_file(const char *filename)
 
 	const int output_file_fd = memfd_create(filename, 0);
 	if (output_file_fd == -1) {
-		perror("memfd_create failed");
+		TQFTP_LOG_PERROR("memfd_create failed");
 		free(decompressed_buffer);
 		munmap(compressed_buffer, file_size);
 		return -1;
 	}
 
-	if (write(output_file_fd, decompressed_buffer, decompressed_size) != decompressed_size) {
-		perror("write failed");
+	if (write(output_file_fd, decompressed_buffer, decompressed_size) != (ssize_t)decompressed_size) {
+		TQFTP_LOG_PERROR("write failed");
 		close(output_file_fd);
 		free(decompressed_buffer);
 		munmap(compressed_buffer, file_size);

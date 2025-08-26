@@ -4,14 +4,20 @@ project('tqftpserv',
         'c',
         version: '1.1',
         default_options: [
-            'warning_level=1',
+            'warning_level=3',
             'buildtype=release',
+            'werror=true'
         ])
 
 prefix = get_option('prefix')
 
+# Add specific warning flags not covered by warning_level=3
+add_project_arguments('-Wsign-compare', '-Wunused-parameter', '-Wtype-limits', '-Wimplicit-function-declaration', language : 'c')
+
 zstd_dep = dependency('libzstd')
 add_project_arguments('-DHAVE_ZSTD', language : 'c')
+
+libconfig_dep = dependency('libconfig')
 
 # Not required to build the executable, only to install unit file
 systemd = dependency('systemd', required : false)
@@ -26,12 +32,14 @@ endif
 
 qrtr_dep = dependency('qrtr')
 
-tqftpserv_srcs = ['translate.c',
+tqftpserv_srcs = ['config.c',
+                  'logging.c',
+                  'translate.c',
                   'tqftpserv.c',
                   'zstd-decompress.c']
 executable('tqftpserv',
            tqftpserv_srcs,
-           dependencies : [qrtr_dep, zstd_dep],
+           dependencies : [qrtr_dep, zstd_dep, libconfig_dep],
            install : true)
 
 if systemd.found()

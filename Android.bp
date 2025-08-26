@@ -2,8 +2,10 @@ cc_binary {
     name: "tqftpserv",
     vendor: true,
     srcs: [
+        "config.c",
+        "logging.c",
         "tqftpserv.c",
         "translate.c",
     ],
-    shared_libs: ["libqrtr"],
+    shared_libs: ["libqrtr", "libconfig"],
 }
