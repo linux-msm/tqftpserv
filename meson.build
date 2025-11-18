@@ -13,15 +13,15 @@ prefix = get_option('prefix')
 zstd_dep = dependency('libzstd')
 add_project_arguments('-DHAVE_ZSTD', language : 'c')
 
-# Not required to build the executable, only to install unit file
+# Not required to build the executable,
+# only to automatically retrieve the install dir for unit files
 systemd = dependency('systemd', required : false)
-if systemd.found()
-        systemd_system_unit_dir = get_option('systemd-unit-prefix')
-        if systemd_system_unit_dir == ''
-                systemd_system_unit_dir = systemd.get_variable(
-                        pkgconfig : 'systemdsystemunitdir',
-                        pkgconfig_define: ['prefix', prefix])
-        endif
+if get_option('systemd-unit-prefix') != ''
+  systemd_system_unit_dir = get_option('systemd-unit-prefix')
+elif systemd.found()
+  systemd_system_unit_dir = systemd.get_variable(
+    pkgconfig : 'systemdsystemunitdir',
+    pkgconfig_define: ['prefix', prefix])
 endif
 
 qrtr_dep = dependency('qrtr')
@@ -34,7 +34,7 @@ executable('tqftpserv',
            dependencies : [qrtr_dep, zstd_dep],
            install : true)
 
-if systemd.found()
+if systemd_system_unit_dir != ''
         systemd_unit_conf = configuration_data()
         systemd_unit_conf.set('prefix', prefix)
         configure_file(
