@@ -2,7 +2,7 @@
 
 project('tqftpserv',
         'c',
-        version: '1.1',
+        version: '1.1.1',
         default_options: [
             'warning_level=1',
             'buildtype=release',
