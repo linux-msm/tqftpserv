@@ -67,6 +67,27 @@ struct tftp_client {
 static struct list_head readers = LIST_INIT(readers);
 static struct list_head writers = LIST_INIT(writers);
 
+static int tftp_send_error(int sock, enum tftp_error code, const char *msg)
+{
+	size_t len;
+	char *buf;
+	int rc;
+
+	len = 4 + strlen(msg) + 1;
+
+	buf = calloc(1, len);
+	if (!buf)
+		return -1;
+
+	*(uint16_t *)buf = htons(OP_ERROR);
+	*(uint16_t *)(buf + 2) = htons(code);
+	strcpy(buf + 4, msg);
+
+	rc = send(sock, buf, len, 0);
+	free(buf);
+	return rc;
+}
+
 static ssize_t tftp_send_data(struct tftp_client *client,
 			      unsigned int block, size_t offset, size_t response_size)
 {
@@ -184,27 +205,6 @@ static int tftp_send_oack(int sock, size_t *blocksize, size_t *tsize,
 	}
 
 	return send(sock, buf, p - buf, 0);
-}
-
-static int tftp_send_error(int sock, enum tftp_error code, const char *msg)
-{
-	size_t len;
-	char *buf;
-	int rc;
-
-	len = 4 + strlen(msg) + 1;
-
-	buf = calloc(1, len);
-	if (!buf)
-		return -1;
-
-	*(uint16_t*)buf = htons(OP_ERROR);
-	*(uint16_t*)(buf + 2) = htons(code);
-	strcpy(buf + 4, msg);
-
-	rc = send(sock, buf, len, 0);
-	free(buf);
-	return rc;
 }
 
 static void parse_options(const char *buf, size_t len, size_t *blksize,
