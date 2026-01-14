@@ -144,7 +144,8 @@ static ssize_t tftp_send_data(struct tftp_client *client,
 
 	len = pread(client->fd, p, client->blksize, offset);
 	if (len < 0) {
-		printf("[TQFTP] failed to read data\n");
+		printf("[TQFTP] failed to read data: %s\n", strerror(errno));
+		tftp_send_error(client->sock, TFTP_ERROR_UNDEF, "Read error");
 		free(buf);
 		return len;
 	}
