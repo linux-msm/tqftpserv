@@ -27,8 +27,18 @@ enum {
 	OP_OACK,
 };
 
-enum {
-	ERROR_END_OF_TRANSFER = 9,
+/* RFC 1350: TFTP Error Codes */
+enum tftp_error {
+	TFTP_ERROR_UNDEF = 0,		/* Not defined, see error message */
+	TFTP_ERROR_ENOENT = 1,		/* File not found */
+	TFTP_ERROR_EACCESS = 2,		/* Access violation */
+	TFTP_ERROR_ENOSPACE = 3,	/* Disk full or allocation exceeded */
+	TFTP_ERROR_EBADOP = 4,		/* Illegal TFTP operation */
+	TFTP_ERROR_EBADID = 5,		/* Unknown transfer ID */
+	TFTP_ERROR_EEXISTS = 6,		/* File already exists */
+	TFTP_ERROR_ENOUSER = 7,		/* No such user */
+	TFTP_ERROR_EOPTNEG = 8,		/* Option negotiation failed (RFC 2347) */
+	ERROR_END_OF_TRANSFER = 9,	/* Custom: End of transfer (not an error) */
 };
 
 struct tftp_client {
@@ -176,7 +186,7 @@ static int tftp_send_oack(int sock, size_t *blocksize, size_t *tsize,
 	return send(sock, buf, p - buf, 0);
 }
 
-static int tftp_send_error(int sock, int code, const char *msg)
+static int tftp_send_error(int sock, enum tftp_error code, const char *msg)
 {
 	size_t len;
 	char *buf;
@@ -296,7 +306,7 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	fd = translate_open(filename, O_RDONLY);
 	if (fd < 0) {
 		printf("[TQFTP] unable to open %s (%d), reject\n", filename, errno);
-		tftp_send_error(sock, 1, "file not found");
+		tftp_send_error(sock, TFTP_ERROR_ENOENT, "file not found");
 		return;
 	}
 
@@ -543,7 +553,7 @@ static int handle_writer(struct tftp_client *client)
 	block = buf[2] << 8 | buf[3];
 	if (opcode != OP_DATA) {
 		printf("[TQFTP] Expected DATA opcode, got %d\n", opcode);
-		tftp_send_error(client->sock, 4, "Expected DATA opcode");
+		tftp_send_error(client->sock, TFTP_ERROR_EBADOP, "Expected DATA opcode");
 		return -1;
 	}
 
@@ -556,7 +566,7 @@ static int handle_writer(struct tftp_client *client)
 
 		printf("[TQFTP] Block number out of sequence: %d (expected %d)\n",
 			 block, blk_expected);
-		tftp_send_error(client->sock, 4, "Block number out of sequence");
+		tftp_send_error(client->sock, TFTP_ERROR_EBADOP, "Block number out of sequence");
 
 		/* Set blk_expected to beginning of current window */
 		if ((blk_expected % client->wsize) == 0)
