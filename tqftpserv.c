@@ -417,15 +417,14 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 
 	sock = qrtr_open(0);
 	if (sock < 0) {
-		/* XXX: error */
 		printf("[TQFTP] unable to create new qrtr socket, reject\n");
 		return;
 	}
 
 	ret = connect(sock, (struct sockaddr *)sq, sizeof(*sq));
 	if (ret < 0) {
-		/* XXX: error */
 		printf("[TQFTP] unable to connect new qrtr socket to remote\n");
+		goto out_close_sock;
 		return;
 	}
 
@@ -433,6 +432,7 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	if (fd < 0) {
 		printf("[TQFTP] unable to open %s (%d), reject\n", filename, errno);
 		tftp_send_error(sock, TFTP_ERROR_ENOENT, "file not found");
+		goto out_close_sock;
 		return;
 	}
 
@@ -455,12 +455,16 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	client->blk_buf = calloc(1, blksize + 4);
 	if (!client->blk_buf) {
 		printf("[TQFTP] Memory allocation failure\n");
+		tftp_send_error(sock, TFTP_ERROR_UNDEF, "Resources temporary unavailable");
+		goto out_free_client;
 		return;
 	}
 
 	client->rw_buf = calloc(1, client->rw_buf_size);
 	if (!client->rw_buf) {
 		printf("[TQFTP] Memory allocation failure\n");
+		tftp_send_error(sock, TFTP_ERROR_UNDEF, "Resources temporary unavailable");
+		goto out_free_blk_buf;
 		return;
 	}
 
@@ -478,6 +482,16 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	} else {
 		tftp_send_data(client, 1, 0, 0);
 	}
+
+	return;
+
+out_free_blk_buf:
+	free(client->blk_buf);
+out_free_client:
+	free(client);
+	close(fd);
+out_close_sock:
+	close(sock);
 }
 
 static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
@@ -551,15 +565,15 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 
 	sock = qrtr_open(0);
 	if (sock < 0) {
-		/* XXX: error */
 		printf("[TQFTP] unable to create new qrtr socket, reject\n");
+		goto out_close_fd;
 		return;
 	}
 
 	ret = connect(sock, (struct sockaddr *)sq, sizeof(*sq));
 	if (ret < 0) {
-		/* XXX: error */
 		printf("[TQFTP] unable to connect new qrtr socket to remote\n");
+		goto out_close_sock;
 		return;
 	}
 
@@ -578,12 +592,16 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	client->blk_buf = calloc(1, blksize + 4);
 	if (!client->blk_buf) {
 		printf("[TQFTP] Memory allocation failure\n");
+		tftp_send_error(sock, TFTP_ERROR_UNDEF, "Resources temporary unavailable");
+		goto out_free_client;
 		return;
 	}
 
 	client->rw_buf = calloc(1, client->rw_buf_size);
 	if (!client->rw_buf) {
 		printf("[TQFTP] Memory allocation failure\n");
+		tftp_send_error(sock, TFTP_ERROR_UNDEF, "Resources temporary unavailable");
+		goto out_free_blk_buf;
 		return;
 	}
 
@@ -601,6 +619,17 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	} else {
 		tftp_send_data(client, 1, 0, 0);
 	}
+
+	return;
+
+out_free_blk_buf:
+	free(client->blk_buf);
+out_free_client:
+	free(client);
+out_close_fd:
+	close(fd);
+out_close_sock:
+	close(sock);
 }
 
 static int handle_reader(struct tftp_client *client)
