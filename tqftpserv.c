@@ -398,8 +398,8 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	p += mode_len + 1;
 
 	if (strcasecmp(mode, "octet")) {
-		/* XXX: error */
-		printf("[TQFTP] not octet, reject\n");
+		printf("[TQFTP] RRQ: unsupported mode '%s', rejecting\n", mode);
+		tftp_send_error_to(sq, TFTP_ERROR_EBADOP, "Only octet mode supported");
 		return;
 	}
 
@@ -525,8 +525,8 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	p += mode_len + 1;
 
 	if (strcasecmp(mode, "octet")) {
-		/* XXX: error */
-		printf("[TQFTP] not octet, reject\n");
+		printf("[TQFTP] WRQ: unsupported mode '%s', rejecting\n", mode);
+		tftp_send_error_to(sq, TFTP_ERROR_EBADOP, "Only octet mode supported");
 		return;
 	}
 
