@@ -81,6 +81,23 @@ struct tftp_client {
 static struct list_head readers = LIST_INIT(readers);
 static struct list_head writers = LIST_INIT(writers);
 
+static int sanitize_path(const char *path)
+{
+	const char *p;
+
+	/* Check for "../" or "/../" */
+	for (p = path; *p; p++) {
+		if (p[0] == '.' && p[1] == '.' && p[2] == '/') {
+			if (p == path || p[-1] == '/') {
+				printf("[TQFTP] Directory traversal rejected: %s\n", path);
+				return -1;
+			}
+		}
+	}
+
+	return 0;
+}
+
 static int tftp_send_error(int sock, enum tftp_error code, const char *msg)
 {
 	size_t len;
@@ -401,6 +418,12 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 		return;
 	}
 
+	/* Validate filename for path traversal attacks */
+	if (sanitize_path(filename) < 0) {
+		tftp_send_error_to(sq, TFTP_ERROR_EACCESS, "Access violation");
+		return;
+	}
+
 	if (p < buf + len) {
 		do_oack = true;
 		ret = parse_options(p, len - (p - buf), &blksize, &tsize, &wsize,
@@ -551,6 +574,12 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	}
 
 	printf("[TQFTP] WRQ: %s (%s)\n", filename, mode);
+
+	/* Validate filename for path traversal attacks */
+	if (sanitize_path(filename) < 0) {
+		tftp_send_error_to(sq, TFTP_ERROR_EACCESS, "Access violation");
+		return;
+	}
 
 	if (p < buf + len) {
 		do_oack = true;
