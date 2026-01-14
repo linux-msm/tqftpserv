@@ -360,6 +360,8 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	const char *mode;
 	struct stat sb;
 	const char *p;
+	const char *end = buf + len;
+	size_t filename_len, mode_len;
 	ssize_t tsize = -1;
 	size_t blksize = 512;
 	unsigned int timeoutms = 1000;
@@ -373,11 +375,27 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 
 	p = buf + 2;
 
+	/* Parse filename - ensure it's NUL-terminated within buffer */
 	filename = p;
-	p += strlen(p) + 1;
+	filename_len = strnlen(filename, end - p);
+	if (filename_len == (size_t)(end - p)) {
+		printf("[TQFTP] RRQ: filename not NUL-terminated\n");
+		return;
+	}
+	p += filename_len + 1;
 
+	/* Parse mode - ensure it's NUL-terminated within buffer */
+	if (p >= end) {
+		printf("[TQFTP] RRQ: truncated packet, missing mode\n");
+		return;
+	}
 	mode = p;
-	p += strlen(p) + 1;
+	mode_len = strnlen(mode, end - p);
+	if (mode_len == (size_t)(end - p)) {
+		printf("[TQFTP] RRQ: mode not NUL-terminated\n");
+		return;
+	}
+	p += mode_len + 1;
 
 	if (strcasecmp(mode, "octet")) {
 		/* XXX: error */
@@ -469,6 +487,8 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	const char *filename;
 	const char *mode;
 	const char *p;
+	const char *end = buf + len;
+	size_t filename_len, mode_len;
 	ssize_t tsize = -1;
 	size_t blksize = 512;
 	unsigned int timeoutms = 1000;
@@ -480,9 +500,29 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	int ret;
 	int fd;
 
-	filename = buf + 2;
-	mode = buf + 2 + strlen(filename) + 1;
-	p = mode + strlen(mode) + 1;
+	p = buf + 2;
+
+	/* Parse filename - ensure it's NUL-terminated within buffer */
+	filename = p;
+	filename_len = strnlen(filename, end - p);
+	if (filename_len == (size_t)(end - p)) {
+		printf("[TQFTP] WRQ: filename not NUL-terminated\n");
+		return;
+	}
+	p += filename_len + 1;
+
+	/* Parse mode - ensure it's NUL-terminated within buffer */
+	if (p >= end) {
+		printf("[TQFTP] WRQ: truncated packet, missing mode\n");
+		return;
+	}
+	mode = p;
+	mode_len = strnlen(mode, end - p);
+	if (mode_len == (size_t)(end - p)) {
+		printf("[TQFTP] WRQ: mode not NUL-terminated\n");
+		return;
+	}
+	p += mode_len + 1;
 
 	if (strcasecmp(mode, "octet")) {
 		/* XXX: error */
