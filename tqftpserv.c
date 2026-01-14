@@ -545,8 +545,8 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 
 	fd = translate_open(filename, O_WRONLY | O_CREAT);
 	if (fd < 0) {
-		/* XXX: error */
 		printf("[TQFTP] unable to open %s (%d), reject\n", filename, errno);
+		tftp_send_error_to(sq, TFTP_ERROR_EACCESS, "Access violation");
 		return;
 	}
 
