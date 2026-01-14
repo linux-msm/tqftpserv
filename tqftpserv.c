@@ -772,8 +772,8 @@ static int handle_writer(struct tftp_client *client)
 	if (block % client->wsize == 0) {
 		ret = write(client->fd, client->rw_buf, client->blk_offset);
 		if (ret < 0) {
-			/* XXX: report error */
-			printf("[TQFTP] failed to write data\n");
+			printf("[TQFTP] failed to write data: %s\n", strerror(errno));
+			tftp_send_error(client->sock, TFTP_ERROR_ENOSPACE, "Disk full or write error");
 			return -1;
 		}
 
