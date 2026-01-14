@@ -357,7 +357,6 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	struct tftp_client *client;
 	const char *filename;
 	const char *mode;
-	struct stat sb;
 	const char *p;
 	const char *end = buf + len;
 	size_t filename_len, mode_len;
@@ -437,8 +436,16 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	}
 
 	if (tsize != -1) {
-		fstat(fd, &sb);
-		tsize = sb.st_size;
+		tsize = lseek(fd, 0, SEEK_END);
+		if (tsize < 0) {
+			printf("[TQFTP] unable to determine file size for %s: %s\n",
+			       filename, strerror(errno));
+			tftp_send_error(sock, TFTP_ERROR_UNDEF, "Cannot determine file size");
+			goto out_close_sock;
+			return;
+		}
+		/* Reset file position to beginning */
+		lseek(fd, 0, SEEK_SET);
 	}
 
 	client = calloc(1, sizeof(*client));
