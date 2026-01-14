@@ -18,6 +18,20 @@
 
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 
+/* RFC 2348: TFTP Blocksize Option - valid range 8 to 65464 bytes */
+#define MIN_BLKSIZE 8
+#define MAX_BLKSIZE 65464
+
+/* RFC 7440: TFTP Windowsize Option - valid range 1 to 65535 */
+#define MIN_WSIZE 1
+#define MAX_WSIZE 65535
+
+/* Reasonable limits for custom options */
+#define MAX_RSIZE (100 * 1024 * 1024)  /* 100 MB */
+#define MIN_TIMEOUTMS 1
+#define MAX_TIMEOUTMS 255000  /* 255 seconds */
+#define MIN_SEEK 0
+
 enum {
 	OP_RRQ = 1,
 	OP_WRQ,
@@ -86,6 +100,32 @@ static int tftp_send_error(int sock, enum tftp_error code, const char *msg)
 	rc = send(sock, buf, len, 0);
 	free(buf);
 	return rc;
+}
+
+/**
+ * tftp_send_error_to() - send TFTP ERROR packet to a remote address
+ * @sq: remote address to send error to
+ * @code: TFTP error code
+ * @msg: error message string
+ *
+ * Creates a temporary socket, connects to the remote address, sends an
+ * ERROR packet, and closes the socket. This is used when we need to send
+ * an error before establishing a client session.
+ */
+static void tftp_send_error_to(struct sockaddr_qrtr *sq, enum tftp_error code, const char *msg)
+{
+	int sock;
+	int ret;
+
+	sock = qrtr_open(0);
+	if (sock < 0)
+		return;
+
+	ret = connect(sock, (struct sockaddr *)sq, sizeof(*sq));
+	if (ret >= 0)
+		tftp_send_error(sock, code, msg);
+
+	close(sock);
 }
 
 static ssize_t tftp_send_data(struct tftp_client *client,
@@ -207,21 +247,42 @@ static int tftp_send_oack(int sock, size_t *blocksize, size_t *tsize,
 	return send(sock, buf, p - buf, 0);
 }
 
-static void parse_options(const char *buf, size_t len, size_t *blksize,
-			  ssize_t *tsize, size_t *wsize, unsigned int *timeoutms,
-			  size_t *rsize, off_t *seek)
+static int parse_options(const char *buf, size_t len, size_t *blksize,
+			 ssize_t *tsize, size_t *wsize, unsigned int *timeoutms,
+			 size_t *rsize, off_t *seek)
 {
 	const char *opt, *value;
+	long long parsed_val;
+	const char *end = buf + len;
 	const char *p = buf;
+	size_t value_len;
+	size_t opt_len;
+	char *endptr;
 
-	while (p < buf + len) {
-		/* XXX: ensure we're not running off the end */
+	while (p < end) {
+		/* Ensure option string is null-terminated within buffer */
 		opt = p;
-		p += strlen(p) + 1;
+		opt_len = strnlen(opt, end - p);
+		if (opt_len == (size_t)(end - p)) {
+			printf("[TQFTP] Malformed options: option not null-terminated\n");
+			return -1;
+		}
+		p += opt_len + 1;
 
-		/* XXX: ensure we're not running off the end */
+		/* Ensure we have space for value string */
+		if (p >= end) {
+			printf("[TQFTP] Malformed options: missing value\n");
+			return -1;
+		}
+
+		/* Ensure value string is null-terminated within buffer */
 		value = p;
-		p += strlen(p) + 1;
+		value_len = strnlen(value, end - p);
+		if (value_len == (size_t)(end - p)) {
+			printf("[TQFTP] Malformed options: value not null-terminated\n");
+			return -1;
+		}
+		p += value_len + 1;
 
 		/*
 		 * blksize: block size - how many bytes to send at once
@@ -232,21 +293,64 @@ static void parse_options(const char *buf, size_t len, size_t *blksize,
 		 * seek: offset from beginning of file in bytes to start reading
 		 */
 		if (!strcmp(opt, "blksize")) {
-			*blksize = atoi(value);
+			errno = 0;
+			parsed_val = strtoll(value, &endptr, 10);
+			if (errno != 0 || *endptr != '\0' || parsed_val < MIN_BLKSIZE || parsed_val > MAX_BLKSIZE) {
+				printf("[TQFTP] Invalid blksize value '%s' (must be %d-%d)\n",
+				       value, MIN_BLKSIZE, MAX_BLKSIZE);
+				return -1;
+			}
+			*blksize = (size_t)parsed_val;
 		} else if (!strcmp(opt, "timeoutms")) {
-			*timeoutms = atoi(value);
+			errno = 0;
+			parsed_val = strtoll(value, &endptr, 10);
+			if (errno != 0 || *endptr != '\0' || parsed_val < MIN_TIMEOUTMS || parsed_val > MAX_TIMEOUTMS) {
+				printf("[TQFTP] Invalid timeoutms value '%s' (must be %d-%d)\n",
+				       value, MIN_TIMEOUTMS, MAX_TIMEOUTMS);
+				return -1;
+			}
+			*timeoutms = (unsigned int)parsed_val;
 		} else if (!strcmp(opt, "tsize")) {
-			*tsize = atoi(value);
+			errno = 0;
+			parsed_val = strtoll(value, &endptr, 10);
+			if (errno != 0 || *endptr != '\0' || parsed_val < 0) {
+				printf("[TQFTP] Invalid tsize value '%s'\n", value);
+				return -1;
+			}
+			*tsize = (ssize_t)parsed_val;
 		} else if (!strcmp(opt, "rsize")) {
-			*rsize = atoi(value);
+			errno = 0;
+			parsed_val = strtoll(value, &endptr, 10);
+			if (errno != 0 || *endptr != '\0' || parsed_val < 1 || parsed_val > MAX_RSIZE) {
+				printf("[TQFTP] Invalid rsize value '%s' (must be 1-%d)\n",
+				       value, MAX_RSIZE);
+				return -1;
+			}
+			*rsize = (size_t)parsed_val;
 		} else if (!strcmp(opt, "wsize")) {
-			*wsize = atoi(value);
+			errno = 0;
+			parsed_val = strtoll(value, &endptr, 10);
+			if (errno != 0 || *endptr != '\0' || parsed_val < MIN_WSIZE || parsed_val > MAX_WSIZE) {
+				printf("[TQFTP] Invalid wsize value '%s' (must be %d-%d)\n",
+				       value, MIN_WSIZE, MAX_WSIZE);
+				return -1;
+			}
+			*wsize = (size_t)parsed_val;
 		} else if (!strcmp(opt, "seek")) {
-			*seek = atoi(value);
+			errno = 0;
+			parsed_val = strtoll(value, &endptr, 10);
+			if (errno != 0 || *endptr != '\0' || parsed_val < MIN_SEEK) {
+				printf("[TQFTP] Invalid seek value '%s' (must be >= %d)\n",
+				       value, MIN_SEEK);
+				return -1;
+			}
+			*seek = (off_t)parsed_val;
 		} else {
 			printf("[TQFTP] Ignoring unknown option '%s' with value '%s'\n", opt, value);
 		}
 	}
+
+	return 0;
 }
 
 static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
@@ -283,8 +387,13 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 
 	if (p < buf + len) {
 		do_oack = true;
-		parse_options(p, len - (p - buf), &blksize, &tsize, &wsize,
-				&timeoutms, &rsize, &seek);
+		ret = parse_options(p, len - (p - buf), &blksize, &tsize, &wsize,
+				    &timeoutms, &rsize, &seek);
+		if (ret < 0) {
+			printf("[TQFTP] Invalid options in RRQ, rejecting\n");
+			tftp_send_error_to(sq, TFTP_ERROR_EOPTNEG, "Option negotiation failed");
+			return;
+		}
 	}
 
 	printf("[TQFTP] RRQ: %s (mode=%s rsize=%ld seek=%ld)\n", filename, mode, rsize, seek);
@@ -385,8 +494,13 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 
 	if (p < buf + len) {
 		do_oack = true;
-		parse_options(p, len - (p - buf), &blksize, &tsize, &wsize,
-				&timeoutms, &rsize, &seek);
+		ret = parse_options(p, len - (p - buf), &blksize, &tsize, &wsize,
+				    &timeoutms, &rsize, &seek);
+		if (ret < 0) {
+			printf("[TQFTP] Invalid options in WRQ, rejecting\n");
+			tftp_send_error_to(sq, TFTP_ERROR_EOPTNEG, "Option negotiation failed");
+			return;
+		}
 	}
 
 	fd = translate_open(filename, O_WRONLY | O_CREAT);
