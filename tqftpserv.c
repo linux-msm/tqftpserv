@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <libgen.h>
 #include <libqrtr.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -78,8 +79,23 @@ struct tftp_client {
 	uint16_t blk_expected;
 };
 
+static bool tftp_debug;
+
 static struct list_head readers = LIST_INIT(readers);
 static struct list_head writers = LIST_INIT(writers);
+
+static void log_debug(const char *fmt, ...)
+{
+	va_list ap;
+
+	if (!tftp_debug)
+		return;
+
+	va_start(ap, fmt);
+	vfprintf(stderr, fmt, ap);
+	va_end(ap);
+	fflush(stderr);
+}
 
 static int sanitize_path(const char *path)
 {
@@ -180,7 +196,7 @@ static ssize_t tftp_send_data(struct tftp_client *client,
 		send_len = p - buf;
 	}
 
-	// printf("[TQFTP] Sending %zd bytes of DATA\n", send_len);
+	log_debug("[TQFTP] Sending %zd bytes of DATA\n", send_len);
 	return send(client->sock, buf, send_len, 0);
 }
 
@@ -523,7 +539,7 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 		return;
 	}
 
-	// printf("[TQFTP] new reader added\n");
+	log_debug("[TQFTP] new reader added\n");
 
 	list_add(&readers, &client->node);
 
@@ -666,7 +682,7 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 		return;
 	}
 
-	// printf("[TQFTP] new writer added\n");
+	log_debug("[TQFTP] new writer added at %d:%d\n", sq->sq_node, sq->sq_port);
 
 	list_add(&writers, &client->node);
 
@@ -738,7 +754,7 @@ static int handle_reader(struct tftp_client *client)
 	}
 
 	last = buf[2] << 8 | buf[3];
-	// printf("[TQFTP] Got ack for %d\n", last);
+	log_debug("[TQFTP] Got ack for %d from %d:%d\n", last, sq.sq_node, sq.sq_port);
 
 	/* We've sent enough data for rsize already */
 	if (last * client->blksize > client->rsize)
@@ -757,7 +773,7 @@ static int handle_reader(struct tftp_client *client)
 			printf("[TQFTP] Sent block %d failed: %zd\n", block + 1, n);
 			break;
 		}
-		// printf("[TQFTP] Sent block %d of %zd\n", block + 1, n);
+		log_debug("[TQFTP] Sent block %d of %zd to %d:%d\n", block + 1, n, sq.sq_node, sq.sq_port);
 		if (n == 0)
 			break;
 		/* We've sent enough data for rsize already */
@@ -856,6 +872,15 @@ static void client_close_and_free(struct tftp_client *client)
 	free(client);
 }
 
+static void print_usage(void)
+{
+	extern const char *__progname;
+
+	fprintf(stderr, "Usage: %s [-d] [-h]\n", __progname);
+	fprintf(stderr, " -d\tPrint detailed debug information\n");
+	fprintf(stderr, " -h\tPrint this usage info\n");
+}
+
 int main(int argc, char **argv)
 {
 	struct tftp_client *client;
@@ -868,8 +893,28 @@ int main(int argc, char **argv)
 	fd_set rfds;
 	int nfds;
 	int opcode;
+	int opt;
 	int ret;
 	int fd;
+
+	while ((opt = getopt(argc, argv, "dh")) != -1) {
+		switch (opt) {
+		case 'd':
+			tftp_debug = true;
+			break;
+		case 'h':
+			print_usage();
+			return 0;
+		default:
+			print_usage();
+			return 1;
+		}
+	}
+
+	if (optind != argc) {
+		print_usage();
+		return 1;
+	}
 
 	fd = qrtr_open(0);
 	if (fd < 0) {
@@ -944,14 +989,14 @@ int main(int argc, char **argv)
 
 				switch (pkt.type) {
 				case QRTR_TYPE_BYE:
-					// fprintf(stderr, "[TQFTP] got bye\n");
+					log_debug("[TQFTP] got bye for %d\n", pkt.node);
 					list_for_each_entry_safe(client, next, &writers, node) {
 						if (client->sq.sq_node == sq.sq_node)
 							client_close_and_free(client);
 					}
 					break;
 				case QRTR_TYPE_DEL_CLIENT:
-					// fprintf(stderr, "[TQFTP] got del_client\n");
+					log_debug("[TQFTP] got del_client for %d:%d\n", pkt.node, pkt.port);
 					list_for_each_entry_safe(client, next, &writers, node) {
 						if (!memcmp(&client->sq, &sq, sizeof(sq)))
 							client_close_and_free(client);
@@ -968,7 +1013,6 @@ int main(int argc, char **argv)
 					handle_rrq(buf, len, &sq);
 					break;
 				case OP_WRQ:
-					// printf("[TQFTP] write\n");
 					handle_wrq(buf, len, &sq);
 					break;
 				case OP_ERROR:
