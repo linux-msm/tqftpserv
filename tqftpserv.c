@@ -146,7 +146,6 @@ static ssize_t tftp_send_data(struct tftp_client *client,
 	if (len < 0) {
 		printf("[TQFTP] failed to read data: %s\n", strerror(errno));
 		tftp_send_error(client->sock, TFTP_ERROR_UNDEF, "Read error");
-		free(buf);
 		return len;
 	}
 
@@ -158,7 +157,6 @@ static ssize_t tftp_send_data(struct tftp_client *client,
 		send_len = 4 + response_size;
 		if (send_len > p - buf) {
 			printf("[TQFTP] requested data of %ld bytes but only read %ld bytes from file, rejecting\n", response_size, len);
-			free(buf);
 			return -EINVAL;
 		}
 	} else {
