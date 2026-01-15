@@ -733,6 +733,7 @@ static int handle_reader(struct tftp_client *client)
 		return -1;
 	} else if (opcode != OP_ACK) {
 		printf("[TQFTP] Expected ACK, got %d\n", opcode);
+		tftp_send_error(client->sock, TFTP_ERROR_EBADOP, "Expected ACK opcode");
 		return -1;
 	}
 
