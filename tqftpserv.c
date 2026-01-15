@@ -200,6 +200,7 @@ static int tftp_send_oack(int sock, size_t *blocksize, size_t *tsize,
 			  off_t *seek)
 {
 	char buf[512];
+	char *end = buf + sizeof(buf);
 	char *p = buf;
 	int n;
 
@@ -207,55 +208,79 @@ static int tftp_send_oack(int sock, size_t *blocksize, size_t *tsize,
 	*p++ = OP_OACK;
 
 	if (blocksize) {
-		strcpy(p, "blksize");
+		if (p + 8 >= end)
+			return -1;
+		memcpy(p, "blksize", 8);
 		p += 8;
 
-		n = sprintf(p, "%zd", *blocksize);
+		n = snprintf(p, end - p, "%zd", *blocksize);
+		if (n < 0 || n >= end - p)
+			return -1;
 		p += n;
 		*p++ = '\0';
 	}
 
 	if (timeoutms) {
-		strcpy(p, "timeoutms");
+		if (p + 10 >= end)
+			return -1;
+		memcpy(p, "timeoutms", 10);
 		p += 10;
 
-		n = sprintf(p, "%d", *timeoutms);
+		n = snprintf(p, end - p, "%d", *timeoutms);
+		if (n < 0 || n >= end - p)
+			return -1;
 		p += n;
 		*p++ = '\0';
 	}
 
 	if (tsize && *tsize != -1) {
-		strcpy(p, "tsize");
+		if (p + 6 >= end)
+			return -1;
+		memcpy(p, "tsize", 6);
 		p += 6;
 
-		n = sprintf(p, "%zd", *tsize);
+		n = snprintf(p, end - p, "%zd", *tsize);
+		if (n < 0 || n >= end - p)
+			return -1;
 		p += n;
 		*p++ = '\0';
 	}
 
 	if (wsize) {
-		strcpy(p, "wsize");
+		if (p + 6 >= end)
+			return -1;
+		memcpy(p, "wsize", 6);
 		p += 6;
 
-		n = sprintf(p, "%zd", *wsize);
+		n = snprintf(p, end - p, "%zd", *wsize);
+		if (n < 0 || n >= end - p)
+			return -1;
 		p += n;
 		*p++ = '\0';
 	}
 
 	if (rsize) {
-		strcpy(p, "rsize");
+		if (p + 6 >= end)
+			return -1;
+		memcpy(p, "rsize", 6);
 		p += 6;
 
-		n = sprintf(p, "%zd", *rsize);
+		n = snprintf(p, end - p, "%zd", *rsize);
+		if (n < 0 || n >= end - p)
+			return -1;
 		p += n;
 		*p++ = '\0';
 	}
 
 	if (seek) {
-		strcpy(p, "seek");
+		if (p + 5 >= end)
+			return -1;
+		memcpy(p, "seek", 5);
 		p += 5;
 
-		n = sprintf(p, "%zd", *seek);
+		n = snprintf(p, end - p, "%zd", *seek);
+		if (n < 0 || n >= end - p)
+			return -1;
 		p += n;
 		*p++ = '\0';
 	}
