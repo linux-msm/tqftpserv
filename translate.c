@@ -20,11 +20,11 @@
 
 #define READONLY_PATH	"/readonly/firmware/image/"
 #define READWRITE_PATH	"/readwrite/"
+#define UPDATES_DIR	"updates/"
 
 #ifndef ANDROID
 #define FIRMWARE_BASE	"/lib/firmware/"
 #define TQFTPSERV_TMP	"/tmp/tqftpserv"
-#define UPDATES_DIR	"updates/"
 #else
 #define FIRMWARE_BASE	"/vendor/firmware/"
 #define TQFTPSERV_TMP	"/data/vendor/tmp/tqftpserv"
