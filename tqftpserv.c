@@ -869,8 +869,9 @@ static int handle_writer(struct tftp_client *client)
 	memcpy(client->rw_buf + client->blk_offset, buf, payload);
 	client->blk_offset += payload;
 
-	/* Write to file if all the wsize blocks are recieved */
-	if (block % client->wsize == 0) {
+	/* Write to file if all the wsize blocks are recieved
+	 * or received buffer that is less than blksize */
+	if ((block % client->wsize == 0) || (payload < client->blksize)) {
 		ret = write(client->fd, client->rw_buf, client->blk_offset);
 		if (ret < 0) {
 			log_err("failed to write data: %s\n", strerror(errno));
