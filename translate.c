@@ -24,7 +24,7 @@
 
 #ifndef ANDROID
 #define FIRMWARE_BASE	"/lib/firmware/"
-#define TQFTPSERV_TMP	"/tmp/tqftpserv"
+#define TQFTPSERV_TMP	"/var/lib/tqftpserv"
 #else
 #define FIRMWARE_BASE	"/vendor/firmware/"
 #define TQFTPSERV_TMP	"/data/vendor/tmp/tqftpserv"
