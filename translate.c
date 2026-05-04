@@ -21,6 +21,7 @@
 #define READONLY_PATH	"/readonly/firmware/image/"
 #define READWRITE_PATH	"/readwrite/"
 #define UPDATES_DIR	"updates/"
+#define READONLY_REQ	"/readonly/"
 
 #ifndef ANDROID
 #define FIRMWARE_BASE	"/lib/firmware/"
@@ -207,6 +208,8 @@ int translate_open(const char *path, int flags)
 {
 	if (!strncmp(path, READONLY_PATH, strlen(READONLY_PATH)))
 		return translate_readonly(path + strlen(READONLY_PATH));
+	if (!strncmp(path, READONLY_REQ, strlen(READONLY_REQ)))
+		return translate_readonly(path + strlen(READONLY_REQ));
 	else if (!strncmp(path, READWRITE_PATH, strlen(READWRITE_PATH)))
 		return translate_readwrite(path + strlen(READWRITE_PATH), flags);
 
