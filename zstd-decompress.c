@@ -30,7 +30,8 @@ int zstd_decompress_file(const char *filename)
 	/* Figure out the size of the file. */
 	struct stat file_stat;
 	if (stat(filename, &file_stat) == -1) {
-		fprintf(stderr, "stat %s failed (%s)\n", filename, strerror(errno));
+		if (errno != ENOENT)
+			fprintf(stderr, "stat %s failed (%s)\n", filename, strerror(errno));
 		return -1;
 	}
 
