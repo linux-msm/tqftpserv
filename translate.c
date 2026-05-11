@@ -228,11 +228,14 @@ static int open_maybe_compressed(const char *path)
 {
 	char *path_with_zstd_extension = NULL;
 	int fd = -1;
+	int ret;
 
 	if (access(path, F_OK) == 0)
 		return open(path, O_RDONLY);
 
-	asprintf(&path_with_zstd_extension, "%s%s", path, ZSTD_EXTENSION);
+	ret = asprintf(&path_with_zstd_extension, "%s%s", path, ZSTD_EXTENSION);
+	if (ret < 0)
+		return ret;
 
 	if (access(path_with_zstd_extension, F_OK) == 0)
 		fd = zstd_decompress_file(path_with_zstd_extension);
