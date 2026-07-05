@@ -1,0 +1,78 @@
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+#
+# Loosely based on the cdba project CI:
+#   https://github.com/linux-msm/cdba
+#
+name: "Builds"
+on:
+  pull_request:
+  push:
+  schedule:
+    # Run at 1:01 PM, every Tuesday
+    - cron: '1 13 * * 2'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+        # zstd support is autodetected: the "enabled" variant installs the
+        # libzstd development package, the "disabled" one does not.
+        zstd: [enabled, disabled]
+        container:
+          - alpine:latest
+          - archlinux:latest
+          - debian:testing
+          - debian:stable
+          - fedora:latest
+          - ubuntu:latest
+          - ubuntu:noble
+        exclude:
+          # zstd ships in the Arch base image and cannot be removed, so the
+          # "disabled" build cannot be exercised there.
+          - container: archlinux:latest
+            zstd: disabled
+
+    container:
+      image: ${{ matrix.container }}
+      env:
+        CC: ${{ matrix.compiler }}
+        ZSTD: ${{ matrix.zstd }}
+
+    steps:
+    - name: Show OS
+      run: cat /etc/os-release
+
+    - name: Git checkout
+      uses: actions/checkout@v5
+
+    - name: Install additional packages
+      run: |
+        INSTALL=${{ matrix.container }}
+        INSTALL="${INSTALL%%:*}"
+        INSTALL="${INSTALL%%/*}"
+        ./ci/$INSTALL.sh
+
+    - name: Compiler version
+      run: $CC --version
+
+    - name: Meson setup
+      run: meson setup --errorlogs --werror . build
+
+    - name: Compile
+      run: ninja -C build
+
+    - name: Verify zstd autodetection
+      run: ./ci/check-zstd.sh
+
+    - name: Install
+      run: ninja -C build install
