@@ -34,7 +34,12 @@ else
   systemd_system_unit_dir = ''
 endif
 
-qrtr_dep = dependency('qrtr')
+qrtr_dep = dependency('qrtr', required : false)
+if not qrtr_dep.found()
+  # Support old libqrtr that does not ship a qrtr.pc pkg-config file.
+  cc = meson.get_compiler('c')
+  qrtr_dep = cc.find_library('qrtr', has_headers : 'libqrtr.h')
+endif
 tqftpserv_deps += qrtr_dep
 
 executable('tqftpserv',
