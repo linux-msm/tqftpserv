@@ -10,8 +10,16 @@ project('tqftpserv',
 
 prefix = get_option('prefix')
 
-zstd_dep = dependency('libzstd')
-add_project_arguments('-DHAVE_ZSTD', language : 'c')
+tqftpserv_srcs = ['translate.c',
+                  'tqftpserv.c']
+tqftpserv_deps = []
+
+zstd_dep = dependency('libzstd', required : false)
+if zstd_dep.found()
+  add_project_arguments('-DHAVE_ZSTD', language : 'c')
+  tqftpserv_srcs += 'zstd-decompress.c'
+  tqftpserv_deps += zstd_dep
+endif
 
 # Not required to build the executable,
 # only to automatically retrieve the install dir for unit files
@@ -27,13 +35,11 @@ else
 endif
 
 qrtr_dep = dependency('qrtr')
+tqftpserv_deps += qrtr_dep
 
-tqftpserv_srcs = ['translate.c',
-                  'tqftpserv.c',
-                  'zstd-decompress.c']
 executable('tqftpserv',
            tqftpserv_srcs,
-           dependencies : [qrtr_dep, zstd_dep],
+           dependencies : tqftpserv_deps,
            install : true)
 
 if systemd_system_unit_dir != ''
