@@ -22,6 +22,8 @@ elif systemd.found()
   systemd_system_unit_dir = systemd.get_variable(
     pkgconfig : 'systemdsystemunitdir',
     pkgconfig_define: ['prefix', prefix])
+else
+  systemd_system_unit_dir = ''
 endif
 
 qrtr_dep = dependency('qrtr')
