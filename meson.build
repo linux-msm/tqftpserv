@@ -18,6 +18,13 @@ tqftpserv_srcs = ['translate.c',
                   'tqftpserv.c']
 tqftpserv_deps = []
 
+xz_dep = dependency('liblzma', required : false)
+if xz_dep.found()
+  add_project_arguments('-DHAVE_XZ', language : 'c')
+  tqftpserv_srcs += 'xz-decompress.c'
+  tqftpserv_deps += xz_dep
+endif
+
 zstd_dep = dependency('libzstd', required : false)
 if zstd_dep.found()
   add_project_arguments('-DHAVE_ZSTD', language : 'c')
