@@ -10,6 +10,10 @@ project('tqftpserv',
 
 prefix = get_option('prefix')
 
+if host_machine.system() == 'android'
+  add_project_arguments('-DANDROID', language : 'c')
+endif
+
 tqftpserv_srcs = ['translate.c',
                   'tqftpserv.c']
 tqftpserv_deps = []
