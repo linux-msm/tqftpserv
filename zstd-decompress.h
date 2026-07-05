@@ -7,6 +7,7 @@
 #define __ZSTD_DECOMPRESS_H__
 
 #include <stdbool.h>
+#include <stdio.h>
 
 #ifdef HAVE_ZSTD
 int zstd_decompress_file(const char *filename);
