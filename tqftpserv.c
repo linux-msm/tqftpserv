@@ -313,7 +313,7 @@ static int tftp_send_oack(int sock, size_t *blocksize, size_t *tsize,
 		memcpy(p, "seek", 5);
 		p += 5;
 
-		n = snprintf(p, end - p, "%zd", *seek);
+		n = snprintf(p, end - p, "%zd", (size_t)*seek);
 		if (n < 0 || n >= end - p)
 			return -1;
 		p += n;
