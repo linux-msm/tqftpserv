@@ -204,7 +204,13 @@ static int translate_readwrite(const char *file, int flags)
  * @path:	path to check
  *
  * Rejects any ".." path component, whether leading, in the middle or
- * trailing. Applied uniformly to every namespace served.
+ * trailing. Also rejects an empty path component (a "//" sequence): once
+ * the namespace prefix is stripped, a leading slash in the remainder
+ * would turn the openat(2) in translate_readwrite() into an absolute
+ * open that escapes the readwrite directory (e.g. "/readwrite//etc/passwd"
+ * strips to "/etc/passwd"). Requests are always absolute, so a single
+ * leading slash is expected and allowed; every interior component must be
+ * non-empty. Applied uniformly to every namespace served.
  *
  * Return: 0 if the path is safe, -1 if it attempts traversal
  */
@@ -212,7 +218,15 @@ int sanitize_path(const char *path)
 {
 	const char *p = path;
 
+	/* Requests are absolute; consume the expected single leading slash. */
+	if (*p == '/')
+		p++;
+
 	while (*p) {
+		/* Empty component ("//"): would yield an absolute openat path. */
+		if (*p == '/')
+			return -1;
+
 		if (p[0] == '.' && p[1] == '.' &&
 		    (p[2] == '/' || p[2] == '\0'))
 			return -1;
