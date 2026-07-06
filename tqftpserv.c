@@ -427,7 +427,7 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	unsigned int timeoutms = 1000;
 	size_t rsize = 0;
 	size_t wsize = 1;
-	off_t seek = 0;
+	off_t seek = -1;
 	bool do_oack = false;
 	int sock;
 	int ret;
@@ -533,7 +533,7 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	client->rsize = rsize;
 	client->wsize = wsize;
 	client->timeoutms = timeoutms;
-	client->seek = seek;
+	client->seek = seek < 0 ? 0 : seek;
 	client->rw_buf_size = blksize * wsize;
 
 	client->blk_buf = calloc(1, blksize + 4);
@@ -558,11 +558,11 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 
 	if (do_oack) {
 		tftp_send_oack(client->sock, &blksize,
-			       tsize ? (size_t*)&tsize : NULL,
+			       (size_t *)&tsize,
 			       wsize ? &wsize : NULL,
 			       &client->timeoutms,
 			       rsize ? &rsize : NULL,
-			       seek ? &seek : NULL);
+			       seek >= 0 ? &seek : NULL);
 	} else {
 		tftp_send_data(client, 1, 0, 0);
 	}
@@ -591,7 +591,7 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	unsigned int timeoutms = 1000;
 	size_t rsize = 0;
 	size_t wsize = 1;
-	off_t seek = 0;
+	off_t seek = -1;
 	bool do_oack = false;
 	int sock;
 	int ret;
@@ -683,7 +683,7 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	client->rsize = rsize;
 	client->wsize = wsize;
 	client->timeoutms = timeoutms;
-	client->seek = seek;
+	client->seek = seek < 0 ? 0 : seek;
 	client->rw_buf_size = blksize * wsize;
 	client->blk_expected = 1;
 
@@ -709,11 +709,11 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 
 	if (do_oack) {
 		tftp_send_oack(client->sock, &blksize,
-			       tsize ? (size_t*)&tsize : NULL,
+			       (size_t *)&tsize,
 			       wsize ? &wsize : NULL,
 			       &client->timeoutms,
 			       rsize ? &rsize : NULL,
-			       seek ? &seek : NULL);
+			       seek >= 0 ? &seek : NULL);
 	} else {
 		tftp_send_data(client, 1, 0, 0);
 	}
