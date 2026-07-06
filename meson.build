@@ -10,8 +10,27 @@ project('tqftpserv',
 
 prefix = get_option('prefix')
 
-zstd_dep = dependency('libzstd')
-add_project_arguments('-DHAVE_ZSTD', language : 'c')
+if host_machine.system() == 'android'
+  add_project_arguments('-DANDROID', language : 'c')
+endif
+
+tqftpserv_srcs = ['translate.c',
+                  'tqftpserv.c']
+tqftpserv_deps = []
+
+xz_dep = dependency('liblzma', required : false)
+if xz_dep.found()
+  add_project_arguments('-DHAVE_XZ', language : 'c')
+  tqftpserv_srcs += 'xz-decompress.c'
+  tqftpserv_deps += xz_dep
+endif
+
+zstd_dep = dependency('libzstd', required : false)
+if zstd_dep.found()
+  add_project_arguments('-DHAVE_ZSTD', language : 'c')
+  tqftpserv_srcs += 'zstd-decompress.c'
+  tqftpserv_deps += zstd_dep
+endif
 
 # Not required to build the executable,
 # only to automatically retrieve the install dir for unit files
@@ -22,16 +41,21 @@ elif systemd.found()
   systemd_system_unit_dir = systemd.get_variable(
     pkgconfig : 'systemdsystemunitdir',
     pkgconfig_define: ['prefix', prefix])
+else
+  systemd_system_unit_dir = ''
 endif
 
-qrtr_dep = dependency('qrtr')
+qrtr_dep = dependency('qrtr', required : false)
+if not qrtr_dep.found()
+  # Support old libqrtr that does not ship a qrtr.pc pkg-config file.
+  cc = meson.get_compiler('c')
+  qrtr_dep = cc.find_library('qrtr', has_headers : 'libqrtr.h')
+endif
+tqftpserv_deps += qrtr_dep
 
-tqftpserv_srcs = ['translate.c',
-                  'tqftpserv.c',
-                  'zstd-decompress.c']
 executable('tqftpserv',
            tqftpserv_srcs,
-           dependencies : [qrtr_dep, zstd_dep],
+           dependencies : tqftpserv_deps,
            install : true)
 
 if systemd_system_unit_dir != ''

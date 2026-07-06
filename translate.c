@@ -16,6 +16,7 @@
 #include <unistd.h>
 
 #include "translate.h"
+#include "xz-decompress.h"
 #include "zstd-decompress.h"
 
 #define READONLY_PATH	"/readonly/firmware/image/"
@@ -234,6 +235,8 @@ int translate_open(const char *path, int flags)
 	return -1;
 }
 
+/* linux-firmware uses .xz as file extension */
+#define XZ_EXTENSION ".xz"
 /* linux-firmware uses .zst as file extension */
 #define ZSTD_EXTENSION ".zst"
 
@@ -245,21 +248,33 @@ int translate_open(const char *path, int flags)
  */
 static int open_maybe_compressed(const char *path)
 {
-	char *path_with_zstd_extension = NULL;
+	char *path_with_extension = NULL;
 	int fd = -1;
 	int ret;
 
 	if (access(path, F_OK) == 0)
 		return open(path, O_RDONLY);
 
-	ret = asprintf(&path_with_zstd_extension, "%s%s", path, ZSTD_EXTENSION);
+	ret = asprintf(&path_with_extension, "%s%s", path, XZ_EXTENSION);
 	if (ret < 0)
 		return ret;
 
-	if (access(path_with_zstd_extension, F_OK) == 0)
-		fd = zstd_decompress_file(path_with_zstd_extension);
+	if (access(path_with_extension, F_OK) == 0)
+		fd = xz_decompress_file(path_with_extension);
 
-	free(path_with_zstd_extension);
+	free(path_with_extension);
+
+	if (fd != -1)
+		return fd;
+
+	ret = asprintf(&path_with_extension, "%s%s", path, ZSTD_EXTENSION);
+	if (ret < 0)
+		return ret;
+
+	if (access(path_with_extension, F_OK) == 0)
+		fd = zstd_decompress_file(path_with_extension);
+
+	free(path_with_extension);
 
 	return fd;
 }

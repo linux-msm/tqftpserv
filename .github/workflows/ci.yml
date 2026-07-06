@@ -1,0 +1,147 @@
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+#
+# Loosely based on the cdba project CI:
+#   https://github.com/linux-msm/cdba
+#
+name: "Builds"
+on:
+  pull_request:
+  push:
+  schedule:
+    # Run at 1:01 PM, every Tuesday
+    - cron: '1 13 * * 2'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+        # zstd and xz support are autodetected: the "enabled" variant installs
+        # the corresponding development package, the "disabled" one does not.
+        zstd: [enabled, disabled]
+        xz: [enabled, disabled]
+        container:
+          - alpine:latest
+          - archlinux:latest
+          - debian:testing
+          - debian:stable
+          - fedora:latest
+          - ubuntu:latest
+          - ubuntu:noble
+        exclude:
+          # zstd and xz ship in the Arch base image and cannot be removed, so
+          # the "disabled" builds cannot be exercised there.
+          - container: archlinux:latest
+            zstd: disabled
+          - container: archlinux:latest
+            xz: disabled
+
+    container:
+      image: ${{ matrix.container }}
+      env:
+        CC: ${{ matrix.compiler }}
+        ZSTD: ${{ matrix.zstd }}
+        XZ: ${{ matrix.xz }}
+
+    steps:
+    - name: Show OS
+      run: cat /etc/os-release
+
+    - name: Git checkout
+      uses: actions/checkout@v5
+
+    - name: Install additional packages
+      run: |
+        INSTALL=${{ matrix.container }}
+        INSTALL="${INSTALL%%:*}"
+        INSTALL="${INSTALL%%/*}"
+        ./ci/$INSTALL.sh
+
+    - name: Compiler version
+      run: $CC --version
+
+    - name: Meson setup
+      run: meson setup --errorlogs --werror . build
+
+    - name: Compile
+      run: ninja -C build
+
+    - name: Verify zstd autodetection
+      run: ./ci/check-zstd.sh
+
+    - name: Verify xz autodetection
+      run: ./ci/check-xz.sh
+
+    - name: Install
+      run: ninja -C build install
+
+  android:
+    name: Android
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [arm64-v8a, armeabi-v7a, x86_64]
+
+    env:
+      NDK_VERSION: r27c
+      QRTR_REF: v1.2
+      API: "24"
+      ABI: ${{ matrix.abi }}
+      QRTR_SRC: ${{ github.workspace }}/qrtr
+      QRTR_PREFIX: ${{ github.workspace }}/qrtr-install/${{ matrix.abi }}
+
+    steps:
+    - name: Git checkout
+      uses: actions/checkout@v5
+
+    - name: Install build tools
+      run: |
+        sudo apt update
+        sudo apt install -y --no-install-recommends meson ninja-build pkg-config
+
+    - name: Cache Android NDK
+      id: ndk-cache
+      uses: actions/cache@v4
+      with:
+        path: android-ndk-${{ env.NDK_VERSION }}
+        key: ndk-${{ env.NDK_VERSION }}-linux
+
+    - name: Download Android NDK
+      if: steps.ndk-cache.outputs.cache-hit != 'true'
+      run: |
+        curl -sSLO https://dl.google.com/android/repository/android-ndk-${NDK_VERSION}-linux.zip
+        unzip -q android-ndk-${NDK_VERSION}-linux.zip
+        rm android-ndk-${NDK_VERSION}-linux.zip
+
+    - name: Cache libqrtr
+      id: qrtr-cache
+      uses: actions/cache@v4
+      with:
+        path: qrtr-install/${{ matrix.abi }}
+        key: qrtr-android-${{ matrix.abi }}-${{ env.QRTR_REF }}-ndk-${{ env.NDK_VERSION }}
+
+    - name: Checkout qrtr
+      if: steps.qrtr-cache.outputs.cache-hit != 'true'
+      uses: actions/checkout@v5
+      with:
+        repository: linux-msm/qrtr
+        ref: ${{ env.QRTR_REF }}
+        path: qrtr
+
+    - name: Build for Android
+      run: |
+        export ANDROID_NDK="$GITHUB_WORKSPACE/android-ndk-${NDK_VERSION}"
+        ./ci/android.sh
