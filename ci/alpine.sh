@@ -21,6 +21,11 @@ if [ "$ZSTD" = "enabled" ]; then
 	PKGS_ZSTD="zstd-dev"
 fi
 
+PKGS_XZ=""
+if [ "$XZ" = "enabled" ]; then
+	PKGS_XZ="xz-dev"
+fi
+
 apk add \
 	build-base \
 	pkgconf \
@@ -28,6 +33,7 @@ apk add \
 	ninja \
 	qrtr-dev \
 	$PKGS_ZSTD \
+	$PKGS_XZ \
 	$PKGS_CC
 
 echo "Install finished: $0"

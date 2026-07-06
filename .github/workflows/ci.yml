@@ -25,9 +25,10 @@ jobs:
       fail-fast: false
       matrix:
         compiler: [gcc, clang]
-        # zstd support is autodetected: the "enabled" variant installs the
-        # libzstd development package, the "disabled" one does not.
+        # zstd and xz support are autodetected: the "enabled" variant installs
+        # the corresponding development package, the "disabled" one does not.
         zstd: [enabled, disabled]
+        xz: [enabled, disabled]
         container:
           - alpine:latest
           - archlinux:latest
@@ -37,16 +38,19 @@ jobs:
           - ubuntu:latest
           - ubuntu:noble
         exclude:
-          # zstd ships in the Arch base image and cannot be removed, so the
-          # "disabled" build cannot be exercised there.
+          # zstd and xz ship in the Arch base image and cannot be removed, so
+          # the "disabled" builds cannot be exercised there.
           - container: archlinux:latest
             zstd: disabled
+          - container: archlinux:latest
+            xz: disabled
 
     container:
       image: ${{ matrix.container }}
       env:
         CC: ${{ matrix.compiler }}
         ZSTD: ${{ matrix.zstd }}
+        XZ: ${{ matrix.xz }}
 
     steps:
     - name: Show OS
@@ -73,6 +77,9 @@ jobs:
 
     - name: Verify zstd autodetection
       run: ./ci/check-zstd.sh
+
+    - name: Verify xz autodetection
+      run: ./ci/check-xz.sh
 
     - name: Install
       run: ninja -C build install
