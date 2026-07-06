@@ -117,21 +117,6 @@ static void log_info(const char *fmt, ...)
 	fflush(stderr);
 }
 
-static int sanitize_path(const char *path)
-{
-	const char *p;
-
-	/* Check for "../" or "/../" */
-	for (p = path; *p; p++) {
-		if (p[0] == '.' && p[1] == '.' && p[2] == '/') {
-			if (p == path || p[-1] == '/')
-				return -1;
-		}
-	}
-
-	return 0;
-}
-
 static int tftp_send_error(int sock, enum tftp_error code, const char *msg)
 {
 	size_t len;

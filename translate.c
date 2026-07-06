@@ -179,13 +179,6 @@ static int translate_readwrite(const char *file, int flags)
 	int ret;
 	int fd;
 
-	/* Reject directory traversal attempts */
-	if (strstr(file, "..")) {
-		warn("path traversal attempt rejected: %s", file);
-		errno = EACCES;
-		return -1;
-	}
-
 	ret = mkdir(TQFTPSERV_RW_DIR, 0700);
 	if (ret < 0 && errno != EEXIST) {
 		warn("failed to create tqftpserv readwrite directory");
@@ -207,6 +200,33 @@ static int translate_readwrite(const char *file, int flags)
 }
 
 /**
+ * sanitize_path() - check a requested path for directory traversal
+ * @path:	path to check
+ *
+ * Rejects any ".." path component, whether leading, in the middle or
+ * trailing. Applied uniformly to every namespace served.
+ *
+ * Return: 0 if the path is safe, -1 if it attempts traversal
+ */
+int sanitize_path(const char *path)
+{
+	const char *p = path;
+
+	while (*p) {
+		if (p[0] == '.' && p[1] == '.' &&
+		    (p[2] == '/' || p[2] == '\0'))
+			return -1;
+
+		p = strchr(p, '/');
+		if (!p)
+			break;
+		p++;
+	}
+
+	return 0;
+}
+
+/**
  * translate_open() - open file after translating path
  *
  * Strips /readonly/firmware/image/ and searches among remoteproc firmware.
@@ -218,6 +238,12 @@ static int translate_readwrite(const char *file, int flags)
  */
 int translate_open(const char *path, int flags)
 {
+	if (sanitize_path(path) < 0) {
+		warnx("path traversal attempt rejected: %s", path);
+		errno = EACCES;
+		return -1;
+	}
+
 	if (!strncmp(path, READONLY_PATH, strlen(READONLY_PATH)))
 		return translate_readonly(path + strlen(READONLY_PATH));
 	else if (!strncmp(path, READONLY_MODEM_PATH, strlen(READONLY_MODEM_PATH)))
