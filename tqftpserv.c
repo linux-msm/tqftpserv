@@ -758,7 +758,8 @@ static int handle_reader(struct tftp_client *client)
 	int ret;
 
 	sl = sizeof(sq);
-	len = recvfrom(client->sock, buf, sizeof(buf), 0, (void *)&sq, &sl);
+	/* Reserve one byte so the ERROR message can be NUL-terminated below */
+	len = recvfrom(client->sock, buf, sizeof(buf) - 1, 0, (void *)&sq, &sl);
 	if (len < 0) {
 		ret = -errno;
 		if (ret != -ENETRESET)
@@ -1025,7 +1026,8 @@ int main(int argc, char **argv)
 
 		if (FD_ISSET(fd, &rfds)) {
 			sl = sizeof(sq);
-			len = recvfrom(fd, buf, sizeof(buf), 0, (void *)&sq, &sl);
+			/* Reserve one byte so an ERROR message can be NUL-terminated */
+			len = recvfrom(fd, buf, sizeof(buf) - 1, 0, (void *)&sq, &sl);
 			if (len < 0) {
 				ret = -errno;
 				if (ret != -ENETRESET)
