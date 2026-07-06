@@ -773,6 +773,13 @@ static int handle_reader(struct tftp_client *client)
 		return -1;
 	}
 
+	/* Need at least opcode and block/error fields */
+	if (len < 4) {
+		log_err("Received short packet (%zd bytes) from %d:%d\n",
+			len, sq.sq_node, sq.sq_port);
+		return -1;
+	}
+
 	opcode = buf[0] << 8 | buf[1];
 	if (opcode == OP_ERROR) {
 		buf[len] = '\0';
@@ -844,6 +851,17 @@ static int handle_writer(struct tftp_client *client)
 	if (sq.sq_node != client->sq.sq_node ||
 	    sq.sq_port != client->sq.sq_port)
 		return -1;
+
+	/*
+	 * Need at least opcode and block fields; without this a short packet
+	 * makes payload (len - 4) underflow and the memcpy below runs wild.
+	 */
+	if (len < 4) {
+		log_err("Received short packet (%zd bytes) from %d:%d\n",
+			len, sq.sq_node, sq.sq_port);
+		tftp_send_error(client->sock, TFTP_ERROR_EBADOP, "Malformed packet");
+		return -1;
+	}
 
 	opcode = buf[0] << 8 | buf[1];
 	block = buf[2] << 8 | buf[3];
