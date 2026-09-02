@@ -1,0 +1,11 @@
+[Unit]
+Description= Populate tqftp readwrite data from persist partition
+Requires=dev-disk-by\x2dpartlabel-persist.device
+After=dev-disk-by\x2dpartlabel-persist.device
+
+[Service]
+Type=oneshot
+ExecStart=@prefix@/bin/populate-readwrite.sh
+
+[Install]
+WantedBy=multi-user.target
