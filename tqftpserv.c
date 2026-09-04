@@ -117,21 +117,6 @@ static void log_info(const char *fmt, ...)
 	fflush(stderr);
 }
 
-static int sanitize_path(const char *path)
-{
-	const char *p;
-
-	/* Check for "../" or "/../" */
-	for (p = path; *p; p++) {
-		if (p[0] == '.' && p[1] == '.' && p[2] == '/') {
-			if (p == path || p[-1] == '/')
-				return -1;
-		}
-	}
-
-	return 0;
-}
-
 static int tftp_send_error(int sock, enum tftp_error code, const char *msg)
 {
 	size_t len;
@@ -442,7 +427,7 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	unsigned int timeoutms = 1000;
 	size_t rsize = 0;
 	size_t wsize = 1;
-	off_t seek = 0;
+	off_t seek = -1;
 	bool do_oack = false;
 	int sock;
 	int ret;
@@ -535,6 +520,12 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	}
 
 	client = calloc(1, sizeof(*client));
+	if (!client) {
+		log_err("Memory allocation failure\n");
+		tftp_send_error(sock, TFTP_ERROR_UNDEF, "Resources temporary unavailable");
+		/* client is NULL; free(NULL) is a no-op, fd and sock get closed */
+		goto out_free_client;
+	}
 	client->sq = *sq;
 	client->sock = sock;
 	client->fd = fd;
@@ -542,7 +533,7 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	client->rsize = rsize;
 	client->wsize = wsize;
 	client->timeoutms = timeoutms;
-	client->seek = seek;
+	client->seek = seek < 0 ? 0 : seek;
 	client->rw_buf_size = blksize * wsize;
 
 	client->blk_buf = calloc(1, blksize + 4);
@@ -567,11 +558,11 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 
 	if (do_oack) {
 		tftp_send_oack(client->sock, &blksize,
-			       tsize ? (size_t*)&tsize : NULL,
+			       (size_t *)&tsize,
 			       wsize ? &wsize : NULL,
 			       &client->timeoutms,
 			       rsize ? &rsize : NULL,
-			       seek ? &seek : NULL);
+			       seek >= 0 ? &seek : NULL);
 	} else {
 		tftp_send_data(client, 1, 0, 0);
 	}
@@ -600,7 +591,7 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	unsigned int timeoutms = 1000;
 	size_t rsize = 0;
 	size_t wsize = 1;
-	off_t seek = 0;
+	off_t seek = -1;
 	bool do_oack = false;
 	int sock;
 	int ret;
@@ -679,6 +670,12 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	}
 
 	client = calloc(1, sizeof(*client));
+	if (!client) {
+		log_err("Memory allocation failure\n");
+		tftp_send_error(sock, TFTP_ERROR_UNDEF, "Resources temporary unavailable");
+		/* client is NULL; free(NULL) is a no-op, fd and sock get closed */
+		goto out_free_client;
+	}
 	client->sq = *sq;
 	client->sock = sock;
 	client->fd = fd;
@@ -686,7 +683,7 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	client->rsize = rsize;
 	client->wsize = wsize;
 	client->timeoutms = timeoutms;
-	client->seek = seek;
+	client->seek = seek < 0 ? 0 : seek;
 	client->rw_buf_size = blksize * wsize;
 	client->blk_expected = 1;
 
@@ -712,11 +709,11 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 
 	if (do_oack) {
 		tftp_send_oack(client->sock, &blksize,
-			       tsize ? (size_t*)&tsize : NULL,
+			       (size_t *)&tsize,
 			       wsize ? &wsize : NULL,
 			       &client->timeoutms,
 			       rsize ? &rsize : NULL,
-			       seek ? &seek : NULL);
+			       seek >= 0 ? &seek : NULL);
 	} else {
 		tftp_send_data(client, 1, 0, 0);
 	}
@@ -746,7 +743,8 @@ static int handle_reader(struct tftp_client *client)
 	int ret;
 
 	sl = sizeof(sq);
-	len = recvfrom(client->sock, buf, sizeof(buf), 0, (void *)&sq, &sl);
+	/* Reserve one byte so the ERROR message can be NUL-terminated below */
+	len = recvfrom(client->sock, buf, sizeof(buf) - 1, 0, (void *)&sq, &sl);
 	if (len < 0) {
 		ret = -errno;
 		if (ret != -ENETRESET)
@@ -758,6 +756,13 @@ static int handle_reader(struct tftp_client *client)
 	if (sq.sq_node != client->sq.sq_node ||
 	    sq.sq_port != client->sq.sq_port) {
 		log_debug("Discarding spoofed message\n");
+		return -1;
+	}
+
+	/* Need at least opcode and block/error fields */
+	if (len < 4) {
+		log_err("Received short packet (%zd bytes) from %d:%d\n",
+			len, sq.sq_node, sq.sq_port);
 		return -1;
 	}
 
@@ -832,6 +837,17 @@ static int handle_writer(struct tftp_client *client)
 	if (sq.sq_node != client->sq.sq_node ||
 	    sq.sq_port != client->sq.sq_port)
 		return -1;
+
+	/*
+	 * Need at least opcode and block fields; without this a short packet
+	 * makes payload (len - 4) underflow and the memcpy below runs wild.
+	 */
+	if (len < 4) {
+		log_err("Received short packet (%zd bytes) from %d:%d\n",
+			len, sq.sq_node, sq.sq_port);
+		tftp_send_error(client->sock, TFTP_ERROR_EBADOP, "Malformed packet");
+		return -1;
+	}
 
 	opcode = buf[0] << 8 | buf[1];
 	block = buf[2] << 8 | buf[3];
@@ -995,7 +1011,8 @@ int main(int argc, char **argv)
 
 		if (FD_ISSET(fd, &rfds)) {
 			sl = sizeof(sq);
-			len = recvfrom(fd, buf, sizeof(buf), 0, (void *)&sq, &sl);
+			/* Reserve one byte so an ERROR message can be NUL-terminated */
+			len = recvfrom(fd, buf, sizeof(buf) - 1, 0, (void *)&sq, &sl);
 			if (len < 0) {
 				ret = -errno;
 				if (ret != -ENETRESET)

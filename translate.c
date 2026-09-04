@@ -179,13 +179,6 @@ static int translate_readwrite(const char *file, int flags)
 	int ret;
 	int fd;
 
-	/* Reject directory traversal attempts */
-	if (strstr(file, "..")) {
-		warn("path traversal attempt rejected: %s", file);
-		errno = EACCES;
-		return -1;
-	}
-
 	ret = mkdir(TQFTPSERV_RW_DIR, 0700);
 	if (ret < 0 && errno != EEXIST) {
 		warn("failed to create tqftpserv readwrite directory");
@@ -207,6 +200,47 @@ static int translate_readwrite(const char *file, int flags)
 }
 
 /**
+ * sanitize_path() - check a requested path for directory traversal
+ * @path:	path to check
+ *
+ * Rejects any ".." path component, whether leading, in the middle or
+ * trailing. Also rejects an empty path component (a "//" sequence): once
+ * the namespace prefix is stripped, a leading slash in the remainder
+ * would turn the openat(2) in translate_readwrite() into an absolute
+ * open that escapes the readwrite directory (e.g. "/readwrite//etc/passwd"
+ * strips to "/etc/passwd"). Requests are always absolute, so a single
+ * leading slash is expected and allowed; every interior component must be
+ * non-empty. Applied uniformly to every namespace served.
+ *
+ * Return: 0 if the path is safe, -1 if it attempts traversal
+ */
+int sanitize_path(const char *path)
+{
+	const char *p = path;
+
+	/* Requests are absolute; consume the expected single leading slash. */
+	if (*p == '/')
+		p++;
+
+	while (*p) {
+		/* Empty component ("//"): would yield an absolute openat path. */
+		if (*p == '/')
+			return -1;
+
+		if (p[0] == '.' && p[1] == '.' &&
+		    (p[2] == '/' || p[2] == '\0'))
+			return -1;
+
+		p = strchr(p, '/');
+		if (!p)
+			break;
+		p++;
+	}
+
+	return 0;
+}
+
+/**
  * translate_open() - open file after translating path
  *
  * Strips /readonly/firmware/image/ and searches among remoteproc firmware.
@@ -218,6 +252,12 @@ static int translate_readwrite(const char *file, int flags)
  */
 int translate_open(const char *path, int flags)
 {
+	if (sanitize_path(path) < 0) {
+		warnx("path traversal attempt rejected: %s", path);
+		errno = EACCES;
+		return -1;
+	}
+
 	if (!strncmp(path, READONLY_PATH, strlen(READONLY_PATH)))
 		return translate_readonly(path + strlen(READONLY_PATH));
 	else if (!strncmp(path, READONLY_MODEM_PATH, strlen(READONLY_MODEM_PATH)))
