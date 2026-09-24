@@ -325,7 +325,7 @@ static int tftp_send_oack(int sock, size_t *blocksize, size_t *tsize,
 
 static int parse_options(const char *buf, size_t len, size_t *blksize,
 			 ssize_t *tsize, size_t *wsize, unsigned int *timeoutms,
-			 size_t *rsize, off_t *seek)
+			 size_t *rsize, off_t *seek, bool *do_unlink)
 {
 	const char *opt, *value;
 	long long parsed_val;
@@ -421,6 +421,20 @@ static int parse_options(const char *buf, size_t len, size_t *blksize,
 				return -1;
 			}
 			*seek = (off_t)parsed_val;
+		} else if (!strcmp(opt, "unlink")) {
+			if (!do_unlink) {
+				log_err("Unlink option used in an RRQ\n");
+				return -1;
+			}
+
+			errno = 0;
+			parsed_val = strtoll(value, &endptr, 10);
+			if (errno != 0 || *endptr != '\0') {
+				log_err("Invalid unlink value '%s'\n", value);
+				return -1;
+			}
+
+			*do_unlink = parsed_val != 0;
 		} else {
 			log_err("Ignoring unknown option '%s' with value '%s'\n", opt, value);
 		}
@@ -489,7 +503,7 @@ static void handle_rrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	if (p < buf + len) {
 		do_oack = true;
 		ret = parse_options(p, len - (p - buf), &blksize, &tsize, &wsize,
-				    &timeoutms, &rsize, &seek);
+				    &timeoutms, &rsize, &seek, NULL);
 		if (ret < 0) {
 			log_err("Invalid options in RRQ, rejecting\n");
 			tftp_send_error_to(sq, TFTP_ERROR_EOPTNEG, "Option negotiation failed");
@@ -587,6 +601,57 @@ out_close_sock:
 	close(sock);
 }
 
+static void handle_unlink(const char *filename, struct sockaddr_qrtr *sq)
+{
+	enum tftp_error code;
+	const char *msg;
+	int sock;
+	int ret;
+
+	ret = unlink(filename);
+	if (ret < 0) {
+		log_err("unable to unlink %s (%d)\n", filename, errno);
+
+		switch (errno) {
+		case ENOENT:
+			code = TFTP_ERROR_ENOENT;
+			msg = "file not found";
+			break;
+		case EACCES:
+		case EPERM:
+			code = TFTP_ERROR_EACCESS;
+			msg = "Access violation";
+			break;
+		default:
+			code = TFTP_ERROR_UNDEF;
+			msg = strerror(errno);
+			break;
+		}
+
+		tftp_send_error_to(sq, code, msg);
+		return;
+	}
+
+	log_info("%s unlinked by request from %d:%d\n", filename, sq->sq_node, sq->sq_port);
+
+	sock = qrtr_open(0);
+	if (sock < 0) {
+		log_err("unable to create new qrtr socket, reject\n");
+		return;
+	}
+
+	ret = connect(sock, (struct sockaddr *)sq, sizeof(*sq));
+	if (ret < 0) {
+		log_err("unable to connect new qrtr socket to remote\n");
+		close(sock);
+		return;
+	}
+
+	/* Acknowledge the unlink with a plain OACK, no options negotiated. */
+	tftp_send_oack(sock, NULL, NULL, NULL, NULL, NULL, NULL);
+	close(sock);
+}
+
 static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 {
 	struct tftp_client *client;
@@ -602,6 +667,7 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	size_t wsize = 1;
 	off_t seek = 0;
 	bool do_oack = false;
+	bool do_unlink = false;
 	int sock;
 	int ret;
 	int fd;
@@ -649,12 +715,17 @@ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
 	if (p < buf + len) {
 		do_oack = true;
 		ret = parse_options(p, len - (p - buf), &blksize, &tsize, &wsize,
-				    &timeoutms, &rsize, &seek);
+				    &timeoutms, &rsize, &seek, &do_unlink);
 		if (ret < 0) {
 			log_err("Invalid options in WRQ, rejecting\n");
 			tftp_send_error_to(sq, TFTP_ERROR_EOPTNEG, "Option negotiation failed");
 			return;
 		}
+	}
+
+	if (do_unlink) {
+		handle_unlink(filename, sq);
+		return;
 	}
 
 	fd = translate_open(filename, O_WRONLY | O_CREAT);
