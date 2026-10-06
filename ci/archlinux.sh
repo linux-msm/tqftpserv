@@ -17,14 +17,15 @@ case $CC in
 	;;
 esac
 
-# zstd ships as part of the Arch base image and cannot be removed, so there
-# is no "disabled" variant to install here.
+# zstd and xz (liblzma) ship as part of the Arch base image and cannot be
+# removed, so there is no "disabled" variant to install here.
 pacman -Syu --noconfirm \
 	pkgconf \
 	meson \
 	ninja \
 	git \
 	zstd \
+	xz \
 	$PKGS_CC
 
 QRTR_SRC=$(mktemp -d)

@@ -24,12 +24,18 @@ if [ "$ZSTD" = "enabled" ]; then
 	PKGS_ZSTD="libzstd-dev"
 fi
 
+PKGS_XZ=""
+if [ "$XZ" = "enabled" ]; then
+	PKGS_XZ="liblzma-dev"
+fi
+
 apt install -y --no-install-recommends \
 	pkg-config \
 	meson \
 	ninja-build \
 	libqrtr-dev \
 	$PKGS_ZSTD \
+	$PKGS_XZ \
 	$PKGS_CC
 
 echo "Install finished: $0"
