@@ -2,6 +2,7 @@
 Description= Populate tqftp readwrite data from persist partition
 Requires=dev-disk-by\x2dpartlabel-persist.device
 After=dev-disk-by\x2dpartlabel-persist.device
+Before=tqftpserv.service
 
 [Service]
 Type=oneshot
