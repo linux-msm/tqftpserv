@@ -58,6 +58,12 @@ executable('tqftpserv',
            dependencies : tqftpserv_deps,
            install : true)
 
+configure_file(
+  input : 'populate-readwrite.sh',
+  output : 'populate-readwrite.sh',
+  install_dir : prefix / 'bin',
+  copy : true)
+
 if systemd_system_unit_dir != ''
         systemd_unit_conf = configuration_data()
         systemd_unit_conf.set('prefix', prefix)
@@ -66,4 +72,11 @@ if systemd_system_unit_dir != ''
                 output : 'tqftpserv.service',
                 configuration : systemd_unit_conf,
                 install_dir : systemd_system_unit_dir)
+
+        configure_file(
+                input : 'tqftpserv-populate-readwrite.service.in',
+                output : 'tqftpserv-populate-readwrite.service',
+                configuration : systemd_unit_conf,
+                install_dir : systemd_system_unit_dir)
+
 endif
