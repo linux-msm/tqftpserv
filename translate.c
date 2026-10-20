@@ -2,6 +2,7 @@
 /*
  * Copyright (c) 2019, Linaro Ltd.
  */
+#define _GNU_SOURCE /* asprintf() */
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <dirent.h>
