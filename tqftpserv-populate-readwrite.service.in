@@ -6,7 +6,7 @@ Before=tqftpserv.service
 
 [Service]
 Type=oneshot
-ExecStart=@prefix@/bin/populate-readwrite.sh
+ExecStart=@prefix@/libexec/tqftpserv/populate-readwrite.sh
 
 [Install]
 WantedBy=multi-user.target
