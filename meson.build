@@ -61,7 +61,7 @@ executable('tqftpserv',
 configure_file(
   input : 'populate-readwrite.sh',
   output : 'populate-readwrite.sh',
-  install_dir : prefix / 'bin',
+  install_dir : prefix / 'libexec' / 'tqftpserv',
   copy : true)
 
 if systemd_system_unit_dir != ''
